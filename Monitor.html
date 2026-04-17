@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>AWS Racer - Oyun Monitörü</title>
+
+    <!-- Dış CSS -->
+    <link rel="stylesheet" href="css/monitor.css">
+
+    <!-- AWS SDK (IoT + DynamoDB) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1408.0/aws-sdk.min.js"></script>
+    <!-- QR Kod Kütüphanesi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- Tema Değiştirme Butonu (Sol Alt) -->
+    <button id="themeToggleBtn" onclick="toggleTheme()" style="position:absolute; bottom:20px; left:20px; z-index:9999; padding:8px 16px; background:#232F3E; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🌙 Dark Mode</button>
+
+    <script>
+        // Tema değiştirici
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+            let isDark = document.body.classList.contains('dark-theme');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            document.getElementById('themeToggleBtn').innerText = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+            document.getElementById('themeToggleBtn').style.background = isDark ? '#FFFFFF' : '#232F3E';
+            document.getElementById('themeToggleBtn').style.color = isDark ? '#232F3E' : 'white';
+        }
+
+        // Sayfa yüklendiğinde eski tercihe bak
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-theme');
+            document.getElementById('themeToggleBtn').innerText = '☀️ Light Mode';
+            document.getElementById('themeToggleBtn').style.background = '#FFFFFF';
+            document.getElementById('themeToggleBtn').style.color = '#232F3E';
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Sol Üst: Skor ve Oyuncu -->
+    <div id="ui">
+        SKOR: <span id="scoreVal">0</span><br>
+        <span class="ui-label">OYUNCU: <span id="playerVal">Anonim</span></span><br>
+        <span class="ui-label-ping">PING: <span id="pingVal">0ms</span></span>
+    </div>
+
+    <!-- Sağ Üst: AWS Bağlantı Durumu -->
+    <div id="status">AWS Bağlantısı: Bekleniyor...</div>
+
+    <!-- Sağ: Güçlendirici ve Engel Açıklamaları -->
+    <div id="legend">
+        <h3>GÜÇLENDİRİCİLER (AWS)</h3>
+        <p><img src="images/Amazon_Web_Services_Logo.svg.png" class="icon"> <b>AWS Logo:</b> +50 Temel Puan</p>
+        <p><img src="images/lambda.svg" class="icon"> <b>Lambda:</b> Yenilmezlik ve Hız (4 sn)</p>
+        <p><img src="images/s3.svg" class="icon"> <b>S3:</b> Veri Kalkanı (1 Çarpma Engeller)</p>
+        <p><img src="images/ec2.svg" class="icon"> <b>EC2:</b> İşlem Gücü (x2 Puan, 5 sn)</p>
+        <h3 id="legend-sub">ENGELLER (ESKİ BİLİŞİM)</h3>
+        <p><img src="images/serverPhoto.png" class="icon"> Eski Sunucu Rafı</p>
+        <p><img src="images/realistic-illustration-floppy-disk-diskette-600w-2090370403.webp" class="icon"> Tarihi 3.5" Disket</p>
+        <p><img src="images/mavi-ekran-hatasi-bytekno-com-tr.webp" class="icon"> Mavi Ekran (BSOD)</p>
+        <p><img src="images/cables400.jpg" class="icon"> Dolaşık Kablo Yumağı</p>
+    </div>
+
+    <!-- Sol: Liderlik Tablosu -->
+    <div id="leaderboard">
+        <h3>🏆 EN İYİ 10 (Liderlik)</h3>
+        <ul id="leaderList">
+            <li>Yükleniyor...</li>
+        </ul>
+    </div>
+
+    <!-- Oyun Sonu Ekranı -->
+    <div id="gameOver">
+        <h1 id="crashTitle">CRASH!</h1>
+        <h2 id="crashSubtitle">Eski donanımlara takılma, AWS ile ışık hızına çık!</h2>
+        <p id="crashScore">Puanın: <span id="finalScore">0</span></p>
+        <button class="btn" onclick="resetGame()">Başa Dön</button>
+    </div>
+
+    <!-- QR Kod Overlay -->
+    <div id="qrOverlay">
+        <h2 id="qrTitle">OYUNCU BEKLENİYOR...</h2>
+        <p id="qrSubtitle">Oyuna katılmak için telefonunuzun kamerasıyla bu kodu okutun.</p>
+        <div id="qrcode"></div>
+    </div>
+
+    <!-- Oyun Kanvası -->
+    <canvas id="gameCanvas" width="600" height="800"></canvas>
+
+    <!--
+        JS Yükleme Sırası (önemli — her modül bir öncekine bağımlıdır):
+        1. config.js       : AWS sabitlerini tanımlar (AWS_CONFIG)
+        2. monitor-game.js : Oyun motorunu ve döngüyü başlatır
+        3. monitor-qr.js   : QR render fonksiyonunu tanımlar
+        4. mqtt.js         : MQTT WebSocket istemci kütüphanesi (CDN)
+        5. monitor-mqtt.js : SigV4 imzalama + MQTT bağlantı yönetimi
+        6. monitor-aws.js  : Cognito auth → startMqtt() çağırır + DynamoDB
+    -->
+    <script src="js/config.js"></script>
+    <script src="js/monitor-game.js"></script>
+    <script src="js/monitor-qr.js"></script>
+    <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
+    <script src="js/monitor-mqtt.js"></script>
+    <script src="js/monitor-aws.js"></script>
+
+</body>
+</html>

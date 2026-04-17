@@ -1,0 +1,236 @@
+/* ============================================
+   Monitor.css — AWS Racer Oyun Monitörü
+   Ana ekranın (büyük ekran/projeksiyon) tüm stilleri.
+   ============================================ */
+
+/* --- Genel Sayfa --- */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #F2F3F3;
+    color: #16191F;
+    overflow: hidden;
+    font-family: 'Open Sans', 'Helvetica Neue', Roboto, Arial, sans-serif;
+}
+
+/* --- Oyun Kanvası --- */
+#gameCanvas {
+    display: block;
+    margin: 0 auto;
+    background-color: #FAFAFA;
+    border-left: 4px dashed #D5DBDB;
+    border-right: 4px dashed #D5DBDB;
+}
+
+/* --- Sol Üst: Skor ve Oyuncu Bilgisi --- */
+#ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+/* --- Sağ Üst: Bağlantı Durumu --- */
+#status {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 20px;
+    color: #FF9900;
+}
+
+/* --- Sağ: Güçlendirici / Engel Açıklamaları --- */
+#legend {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #EAEDED;
+    box-shadow: 0 1px 4px rgba(0, 28, 36, 0.1);
+    text-align: left;
+    width: 310px;
+    box-sizing: border-box;
+}
+
+#legend h3 {
+    margin: 0 0 10px 0;
+    color: #16191F;
+    font-size: 15px;
+    border-bottom: 1px solid #EAEDED;
+    padding-bottom: 5px;
+}
+
+#legend p {
+    margin: 6px 0;
+}
+
+/* --- Sol: Liderlik Tablosu --- */
+#leaderboard {
+    position: absolute;
+    top: 130px;
+    left: 20px;
+    font-size: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #EAEDED;
+    text-align: left;
+    width: 250px;
+    box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0, 28, 36, 0.1);
+}
+
+#leaderboard h3 {
+    margin: 0 0 10px 0;
+    color: #16191F;
+    font-size: 16px;
+    border-bottom: 1px solid #EAEDED;
+    padding-bottom: 5px;
+}
+
+#leaderList {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    color: #545B64;
+    line-height: 1.6;
+}
+
+/* --- Oyun Sonu Ekranı (CRASH!) --- */
+#gameOver {
+    display: none;
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 50px;
+    border-radius: 10px;
+    border: 1px solid #D5DBDB;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: #16191F;
+}
+
+/* --- QR Kod Overlay (Oyuncu Bekleme Ekranı) --- */
+#qrOverlay {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 40px;
+    border-radius: 12px;
+    border: 1px solid #D5DBDB;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: #16191F;
+}
+
+#qrcode {
+    display: flex;
+    justify-content: center;
+    margin: 25px 0;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* --- Butonlar --- */
+.btn {
+    background: #FF9900;
+    color: white;
+    padding: 15px 30px;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 20px;
+    font-weight: bold;
+}
+
+.btn:hover {
+    background: #e38900;
+}
+
+/* --- Inline'dan Gelen Stiller (Light Mod Standart) --- */
+#scoreVal { color: #FF9900; }
+.ui-label { font-size: 16px; color: #545B64; }
+.ui-label-ping { font-size: 18px; color: #545B64; }
+#playerVal, #pingVal { color: #FF9900; }
+#crashTitle { color: #D13212; font-size: 54px; margin: 0; }
+#crashSubtitle { color: #545B64; }
+#crashScore { font-size: 24px; }
+#finalScore { color: #FF9900; font-weight: bold; }
+#qrTitle { color: #FF9900; margin-top: 0; }
+#qrSubtitle { font-size: 16px; color: #545B64; max-width: 250px; margin: 0 auto; }
+.icon { vertical-align: middle; width: 20px; }
+#legend-sub { margin-top: 15px; }
+
+/* ============================================
+   DARK THEME (Orijinal Tasarım Dönüş)
+   ============================================ */
+body.dark-theme {
+    background-color: #232F3E;
+    color: white;
+}
+
+body.dark-theme #gameCanvas {
+    background-color: #1A232E;
+    border-left: 5px dashed #FF9900;
+    border-right: 5px dashed #FF9900;
+}
+
+body.dark-theme #legend {
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #555;
+    box-shadow: none;
+}
+
+body.dark-theme #legend h3 {
+    color: #00A1C9;
+    border-bottom: 1px solid #444;
+}
+
+body.dark-theme #leaderboard {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #FF9900;
+    box-shadow: 0 0 10px rgba(255, 153, 0, 0.3);
+}
+
+body.dark-theme #leaderboard h3 {
+    color: #FF9900;
+    border-bottom: 1px solid #444;
+}
+
+body.dark-theme #leaderList {
+    color: #ddd;
+}
+
+body.dark-theme #gameOver {
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid #FF9900;
+    box-shadow: none;
+    color: white;
+}
+
+body.dark-theme #qrOverlay {
+    background: rgba(0, 0, 0, 0.9);
+    border: 3px solid #00A1C9;
+    box-shadow: 0 0 20px rgba(0, 161, 201, 0.5);
+    color: white;
+}
+
+/* Dark Mode Inline Stilleri */
+body.dark-theme #scoreVal { color: #00A1C9; }
+body.dark-theme .ui-label { color: white; }
+body.dark-theme .ui-label-ping { color: #aaa; }
+body.dark-theme #crashTitle { color: #FF4F4F; }
+body.dark-theme #crashSubtitle { color: #ddd; }
+body.dark-theme #finalScore { color: #00A1C9; }
+body.dark-theme #qrSubtitle { color: #ddd; }

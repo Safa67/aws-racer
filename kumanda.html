@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AWS Racer - Kumanda</title>
+
+    <!-- Dış CSS -->
+    <link rel="stylesheet" href="css/kumanda.css">
+
+    <!-- QR okuyucu için (eğer gerekiyorsa) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1408.0/aws-sdk.min.js"></script>
+    
+    <!-- Tema Değiştirme Butonu -->
+    <button id="themeToggleBtn" onclick="toggleTheme()" style="position:absolute; top:10px; right:10px; z-index:9999; padding:6px 12px; background:#232F3E; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">🌙 Dark</button>
+
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+            let isDark = document.body.classList.contains('dark-theme');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            document.getElementById('themeToggleBtn').innerText = isDark ? '☀️ Light' : '🌙 Dark';
+            document.getElementById('themeToggleBtn').style.background = isDark ? '#FFFFFF' : '#232F3E';
+            document.getElementById('themeToggleBtn').style.color = isDark ? '#232F3E' : 'white';
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-theme');
+        }
+    </script>
+</head>
+<body>
+
+    <!-- ── GİRİŞ EKRANI ────────────────────────────────────────── -->
+    <div id="nameOverlay">
+        <h2 style="color: #FF9900; margin: 0 0 5px 0;">AWS Racer</h2>
+        <p style="color: #545B64; margin-bottom: 25px; font-size: 14px;">Liderlik tablosuna girmek için isminizi yazın</p>
+
+        <input type="text" id="playerNameInput" placeholder="İsminiz (max 15 karakter)">
+        <button id="connectBtn">Bağlan ve Oyna 🚀</button>
+
+        <p id="nameError" style="color:#D13212; font-size:13px; margin-top:10px; min-height:18px;"></p>
+        <p id="leaderPreview" style="color:#545B64; font-size:12px; margin-top:5px;">Yükleniyor...</p>
+    </div>
+
+    <!-- ── OYUN EKRANI (oynarken gösterilir) ───────────────────── -->
+    <div id="gameUI" style="display:none;">
+
+        <!-- Üst Bar: Oyuncu adı + Bağlantı durumu -->
+        <div class="top-bar">
+            <div>
+                <div class="label">Oyuncu</div>
+                <div class="value" id="pNameVal">-</div>
+            </div>
+            <div style="text-align:right;">
+                <div class="label">Bağlantı</div>
+                <div id="status" style="font-size:14px; color:#1D8102; font-weight:bold;">AKTİF 🟢</div>
+            </div>
+        </div>
+
+        <!-- Direksiyon Göstergesi -->
+        <div class="tilt-container">
+            <div class="tilt-label">📱 Telefonu çevirin — Direksiyon</div>
+            <div class="tilt-bar-bg">
+                <div class="tilt-center"></div>
+                <div id="tiltFill" class="tilt-bar-fill" style="width:0%; margin-left:50%;"></div>
+            </div>
+            <!-- id="tiltDisplay": startSensing() tarafından güncellenir -->
+            <div class="tilt-value" id="tiltDisplay">Eğim: 0°</div>
+        </div>
+
+        <!-- Canlı Liderlik Tablosu -->
+        <div class="leaderboard">
+            <h3>
+                <span>🏆 Liderlik Tablosu</span>
+                <span id="lbUpdate" style="font-size:11px; color:#AAB7B8; font-weight:normal;">güncelleniyor...</span>
+            </h3>
+            <ul id="phoneLeaderList">
+                <li style="color:#545B64; text-align:center;">Yükleniyor...</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <!--
+        JS Yükleme Sırası:
+        1. config.js      : AWS_CONFIG sabitlerini tanımlar
+        2. kumanda-aws.js : AWS bağlantısı, Shadow gönderimi, leaderboard
+        3. kumanda-ui.js  : İsim doğrulama, UI geçişi, sensör okuma
+    -->
+    <script src="js/config.js"></script>
+    <script src="js/kumanda-aws.js"></script>
+    <script src="js/kumanda-ui.js"></script>
+
+</body>
+</html>

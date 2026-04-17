@@ -1,0 +1,20 @@
+version: 1
+frontend:
+  phases:
+    build:
+      commands:
+        # Amplify Environment Variables'dan config.js oluştur
+        # Bu sayede gerçek değerler asla GitHub'da görünmez
+        - |
+          cat > js/config.js << EOF
+          const AWS_CONFIG = {
+              region:        '${RACER_REGION}',
+              iotEndpoint:   '${IOT_ENDPOINT}',
+              cognitoPoolId: '${COGNITO_POOL_ID}',
+              dynamoTable:   '${DYNAMO_TABLE}',
+          };
+          EOF
+  artifacts:
+    baseDirectory: /
+    files:
+      - '**/*'

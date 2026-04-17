@@ -1,0 +1,9 @@
+# AWS Yapılandırması - Bu dosya asla GitHub'a gönderilmez
+# Gerçek değerler Amplify Environment Variables'da saklanır
+js/config.js
+
+# Genel
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
