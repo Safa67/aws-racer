@@ -67,7 +67,7 @@ function sendDataToAWS(tiltValue, playerName) {
     if (!iotData) return;
 
     const now = Date.now();
-    if (now - lastSendTime < 40) return; // Rate limiting
+    if (now - lastSendTime < 75) return; // Rate limiting (Saniyede ~13-14 istek, maliyet tasarrufu)
     lastSendTime = now;
 
     // ±2 derece denge payı: çok hafif titremeleri ve drift'i engeller
