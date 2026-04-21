@@ -197,15 +197,7 @@ function _handleMqttMessage(topic, message) {
         const desired = payload.state && payload.state.desired;
         if (!desired) return;
 
-        // ── Uçtan Uca Gecikme ─────────────────────────────────────────────
-        // ── Ping Göstergesi ──────────────────────────────────────────────
-        // payload.timestamp: AWS'nin mesajı işlediği an (saniye cinsinden, sunucu saati).
-        // Date.now() - payload.timestamp*1000 = AWS Frankfurt → Monitör tek yönlü gecikme.
-        // Bu yöntem sentAt'tan daha güvenilir: sadece AWS saati ile monitör saati kullanılır.
-        if (payload.timestamp) {
-            const awsToMonitor = Math.max(0, Date.now() - payload.timestamp * 1000);
-            document.getElementById('pingVal').innerText = awsToMonitor + 'ms';
-        }
+
 
         // ── Oyuncu Adı ────────────────────────────────────────────────────
         if (desired.playerName && desired.playerName !== activePlayerName) {
@@ -217,8 +209,15 @@ function _handleMqttMessage(topic, message) {
         if (desired.tilt !== undefined) {
             // İlk tilt verisi gelince oyunu başlat
             if (!gameStarted && !isGameOver) startGame();
-            // Eğimi harekete dönüştür (bölen ne kadar büyükse hareket o kadar yavaş olur)
-            setTargetSpeed(desired.tilt / 7);
+
+            // Kavisli Duyarlılık: Küçük eğimlerde yüksek hassasiyet, büyük eğimlerde güç.
+            // (Math.pow ile doğrusal olmayan bir ivmelenme sağlanır)
+            const rawTilt     = desired.tilt;
+            const sensitivity = 7.2;
+            const exponent    = 1.12;
+            const curvedSpeed = Math.sign(rawTilt) * Math.pow(Math.abs(rawTilt), exponent) / sensitivity;
+
+            setTargetSpeed(curvedSpeed);
         }
 
     } catch (e) {

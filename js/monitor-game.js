@@ -231,8 +231,8 @@ function updateGame() {
     // Her 500 puanda hızlanma (yenilmezlik sırasında hızlanma olmaz)
     if (score % 500 === 0 && !isInvincible) speedMultiplier += 0.15;
 
-    // Lerp ile yumuşak hareket — 0.35 = duyarlı ama titremesiz
-    player.speedX += (targetSpeedX - player.speedX) * 0.35;
+    // Lerp ile yumuşak hareket — 0.25 = daha akışkan ve "sinematik" hareket
+    player.speedX += (targetSpeedX - player.speedX) * 0.25;
     player.x      += player.speedX;
     player.x       = Math.max(30, Math.min(canvas.width - 30, player.x));
 

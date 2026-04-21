@@ -10,8 +10,10 @@
  * Bağımlılıklar: kumanda-aws.js (iotData, dynamoClient, sendDataToAWS, fetchLeaderboard)
  */
 
-let PLAYER_NAME    = '';
-let leaderInterval = null; // Oyun içi leaderboard yenileme zamanlayıcısı
+let PLAYER_NAME      = '';
+let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
+let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
+const SENSOR_SMOOTH  = 0.25; // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
 
 // ─── Bağlan Butonu ────────────────────────────────────────────────────────────
 
@@ -103,17 +105,20 @@ function startPlaying(name) {
  */
 function startSensing() {
     window.addEventListener('deviceorientation', (event) => {
-        const gamma = event.gamma; // Sağa/sola eğim açısı (°)
-        if (gamma === null) return;
+        const rawGamma = event.gamma; // Sağa/sola eğim açısı (°)
+        if (rawGamma === null) return;
+
+        // EMA Filtresi: Sensördeki titremeleri ve ani sıçramaları temizler
+        smoothedGamma = (rawGamma * SENSOR_SMOOTH) + (smoothedGamma * (1 - SENSOR_SMOOTH));
 
         // Tilt değerini ekranda göster
-        document.getElementById('tiltDisplay').innerText = `Eğim: ${Math.round(gamma)}°`;
+        document.getElementById('tiltDisplay').innerText = `Eğim: ${Math.round(smoothedGamma)}°`;
 
         // Direksiyon çubuğunu güncelle
-        updateTiltBar(gamma);
+        updateTiltBar(smoothedGamma);
 
-        // AWS'ye gönder (içinde 40ms rate limiting ve ±2° deadzone var)
-        sendDataToAWS(Math.round(gamma), PLAYER_NAME);
+        // AWS'ye filtrelenmiş veriyi gönder
+        sendDataToAWS(Math.round(smoothedGamma), PLAYER_NAME);
     });
 }
 

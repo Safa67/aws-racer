@@ -161,8 +161,7 @@ body {
 /* --- Inline'dan Gelen Stiller (Light Mod Standart) --- */
 #scoreVal { color: #FF9900; }
 .ui-label { font-size: 16px; color: #545B64; }
-.ui-label-ping { font-size: 18px; color: #545B64; }
-#playerVal, #pingVal { color: #FF9900; }
+#playerVal { color: #FF9900; }
 #crashTitle { color: #D13212; font-size: 54px; margin: 0; }
 #crashSubtitle { color: #545B64; }
 #crashScore { font-size: 24px; }
@@ -229,7 +228,7 @@ body.dark-theme #qrOverlay {
 /* Dark Mode Inline Stilleri */
 body.dark-theme #scoreVal { color: #00A1C9; }
 body.dark-theme .ui-label { color: white; }
-body.dark-theme .ui-label-ping { color: #aaa; }
+
 body.dark-theme #crashTitle { color: #FF4F4F; }
 body.dark-theme #crashSubtitle { color: #ddd; }
 body.dark-theme #finalScore { color: #00A1C9; }
