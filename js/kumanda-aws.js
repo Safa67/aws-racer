@@ -12,17 +12,17 @@
 
 // URL'den oda kodunu al (?room=awsracer-XXXXXX)
 const urlParams = new URLSearchParams(window.location.search);
-const ODA_ID    = urlParams.get('room');
+const ODA_ID = urlParams.get('room');
 
 // Oda kodu yoksa bağlantıyı tamamen durdur (QR olmadan giriş engeli)
 if (!ODA_ID) {
-    document.getElementById('status').innerHTML    = '❌ İZİNSİZ GİRİŞ!<br><br>Lütfen oyuna katılmak için ana ekrandaki QR Kodu okutun.';
-    document.getElementById('status').style.color  = '#FF4F4F';
+    document.getElementById('status').innerHTML = '❌ İZİNSİZ GİRİŞ!<br><br>Lütfen oyuna katılmak için ana ekrandaki QR Kodu okutun.';
+    document.getElementById('status').style.color = '#FF4F4F';
     throw new Error('Oda numarası bulunamadı, bağlantı durduruldu.');
 }
 
 // --- AWS durum değişkenleri ---
-let iotData      = null;
+let iotData = null;
 let dynamoClient = null;
 
 // Son gönderme zamanı (40ms tavanı için rate limiting)
@@ -30,25 +30,25 @@ let lastSendTime = 0;
 
 // ─── AWS Kimlik Doğrulama ─────────────────────────────────────────────────────
 
-AWS.config.region      = AWS_CONFIG.region;
+AWS.config.region = AWS_CONFIG.region;
 AWS.config.credentials = new AWS.CognitoIdentityCredentials({
     IdentityPoolId: AWS_CONFIG.cognitoPoolId,
 });
 
 AWS.config.credentials.get(function (err) {
     if (err) {
-        document.getElementById('status').innerText    = 'Yetki Hatası: (Konsola bak)';
-        document.getElementById('status').style.color  = 'red';
+        document.getElementById('status').innerText = 'Yetki Hatası: (Konsola bak)';
+        document.getElementById('status').style.color = 'red';
         console.error('Cognito Hatası:', err);
         return;
     }
 
-    iotData      = new AWS.IotData({ endpoint: AWS_CONFIG.iotEndpoint });
+    iotData = new AWS.IotData({ endpoint: AWS_CONFIG.iotEndpoint });
     dynamoClient = new AWS.DynamoDB.DocumentClient();
 
     console.log('Kumanda AWS\'ye bağlandı!');
-    document.getElementById('status').innerText    = "AWS'ye Bağlandı! 🚀";
-    document.getElementById('status').style.color  = '#00FF00';
+    document.getElementById('status').innerText = "AWS'ye Bağlandı! 🚀";
+    document.getElementById('status').style.color = '#00FF00';
 
     // Giriş ekranında da leaderboard önizlemesini göster
     fetchLeaderboard(true);
@@ -67,7 +67,7 @@ function sendDataToAWS(tiltValue, playerName) {
     if (!iotData) return;
 
     const now = Date.now();
-    if (now - lastSendTime < 75) return; // Rate limiting (Saniyede ~13-14 istek, maliyet tasarrufu)
+    if (now - lastSendTime < 40) return; // Rate limiting (Saniyede ~25 istek, akıcı kontrol için)
     lastSendTime = now;
 
     // ±2 derece denge payı: çok hafif titremeleri ve drift'i engeller
