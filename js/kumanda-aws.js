@@ -22,7 +22,7 @@ if (!ODA_ID) {
 }
 
 // --- AWS durum değişkenleri ---
-let iotData = null;
+let iotData      = null; // Shadow güncelleme için (bu modülde init edilir; kumanda-ui.js tarafından okunur)
 let dynamoClient = null;
 
 // Son gönderme zamanı (40ms tavanı için rate limiting)
@@ -99,7 +99,8 @@ function fetchLeaderboard(isPreview, myName) {
     dynamoClient.scan({ TableName: AWS_CONFIG.dynamoTable }, function (err, data) {
         if (err) { console.error('Leaderboard hatası:', err); return; }
 
-        // Aynı oyuncu birden fazla oynayabilir — her ismin en yüksek skoru alınır.
+        // Giriş sırasında benzersiz isim zorunluluğu uygulanıyor (kumanda-ui.js).
+        // Bu gruplama sadece beklenmedik çifte kayıtlara karşı güvenlik önlemi olarak tutulur.
         const bestByName = {};
         data.Items.forEach(item => {
             if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {

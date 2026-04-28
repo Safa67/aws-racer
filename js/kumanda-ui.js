@@ -7,7 +7,7 @@
  *   3. Gyroscope sensörü okuma ve tilt çubuğu güncelleme
  *   4. Oyun sırasında leaderboard periyodik yenileme
  *
- * Bağımlılıklar: kumanda-aws.js (iotData, dynamoClient, sendDataToAWS, fetchLeaderboard)
+ * Bağımlılıklar: kumanda-aws.js (dynamoClient, sendDataToAWS, fetchLeaderboard, iotData, ODA_ID)
  */
 
 let PLAYER_NAME      = '';
@@ -20,6 +20,7 @@ const SENSOR_SMOOTH  = 0.25; // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8:
 document.getElementById('connectBtn').addEventListener('click', () => {
     const inputName = document.getElementById('playerNameInput').value.trim();
     const nameError = document.getElementById('nameError');
+    const connectBtn = document.getElementById('connectBtn');
     nameError.innerText = '';
 
     // Temel doğrulama
@@ -27,11 +28,39 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     if (inputName.length > 15) { nameError.innerText = '⚠️ İsim en fazla 15 karakter olabilir!'; return; }
     if (!dynamoClient)         { nameError.innerText = '⏳ AWS bağlantısı bekleniyor...'; return; }
 
-    // İsim kontrolü kaldırıldı: Aynı kişi tekrar oynayabilmeli.
-    // Leaderboard sadece en yüksek skoru gösterir (fetchLeaderboard içinde gruplandırılır).
-    nameError.style.color = '#00FF00';
-    nameError.innerText   = '✅ Bağlanılıyor...';
-    setTimeout(() => startPlaying(inputName), 400);
+    // Butonu devre dışı bırak (çift tıklamayı önle)
+    connectBtn.disabled = true;
+    nameError.style.color = '#FF9900';
+    nameError.innerText = '🔍 İsim kontrol ediliyor...';
+
+    // DynamoDB'de bu isim daha önce kullanılmış mı? (büyük/küçük harf DUYARLI — "Ali" ve "ali" farklı sayılır)
+    dynamoClient.scan({
+        TableName: AWS_CONFIG.dynamoTable,
+        FilterExpression: 'PlayerName = :n',
+        ExpressionAttributeValues: { ':n': inputName }
+    }, function (err, data) {
+        connectBtn.disabled = false;
+
+        if (err) {
+            nameError.style.color = '#D13212';
+            nameError.innerText = '❌ Sunucu hatası, tekrar dene!';
+            console.error('İsim kontrolü hatası:', err);
+            return;
+        }
+
+        if (data.Items && data.Items.length > 0) {
+            // Bu isim zaten var — engelle
+            nameError.style.color = '#D13212';
+            nameError.innerText = `❌ "${inputName}" ismi zaten kullanılmış! Lütfen farklı bir isim girin.`;
+            document.getElementById('playerNameInput').focus();
+            return;
+        }
+
+        // İsim benzersiz — oyuna başla
+        nameError.style.color = '#00FF00';
+        nameError.innerText = '✅ Bağlanılıyor...';
+        setTimeout(() => startPlaying(inputName), 400);
+    });
 });
 
 // ─── Oyuna Başla ──────────────────────────────────────────────────────────────
