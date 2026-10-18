@@ -174,7 +174,8 @@ function _handleMqttMessage(topic, message) {
         }
 
         // ── Oyuncu Adı ────────────────────────────────────────────────────
-        if (desired.playerName && desired.playerName !== activePlayerName) {
+        // Küfürlü isim (telefondaki kontrol atlatılmışsa): yok say; oyuncu "Anonim" kalır ve skoru kaydedilmez
+        if (desired.playerName && !isProfane(desired.playerName) && desired.playerName !== activePlayerName) {
             activePlayerName = desired.playerName;
             document.getElementById('playerVal').innerText = activePlayerName;
         }

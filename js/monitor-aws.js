@@ -83,7 +83,7 @@ function todayKey() {
 function renderBoard(listId, items, emptyText) {
     // Aynı isimde birden fazla kayıt olabilir (oyuncular 3 hakka kadar oynar): en yüksek skor sayılır.
     const bestByName = {};
-    items.filter(item => !isTesterName(item.PlayerName)).forEach(item => {
+    items.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
         if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
             bestByName[item.PlayerName] = item.Score;
         }
@@ -138,7 +138,7 @@ function fetchLeaderboard() {
 
         // Canlı sıra için bugünün en iyi skorları (deneme hesapları sayılmaz)
         const best = {};
-        todays.filter(item => !isTesterName(item.PlayerName)).forEach(item => {
+        todays.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
             if (!(item.PlayerName in best) || item.Score > best[item.PlayerName]) best[item.PlayerName] = item.Score;
         });
         dailyBests = Object.keys(best).map(name => ({ name: name, score: best[name] }));

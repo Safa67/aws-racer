@@ -227,7 +227,7 @@ function fetchLeaderboard(isPreview, myName) {
         // Giriş sırasında benzersiz isim zorunluluğu uygulanıyor (kumanda-ui.js).
         // Bu gruplama sadece beklenmedik çifte kayıtlara karşı güvenlik önlemi olarak tutulur.
         const bestByName = {};
-        items.filter(item => !isTesterName(item.PlayerName)).forEach(item => {
+        items.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
             if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
                 bestByName[item.PlayerName] = item.Score;
             }

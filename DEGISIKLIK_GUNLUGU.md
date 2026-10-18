@@ -144,6 +144,15 @@ Bir QR'ı iki telefon aynı anda okutursa ya da oyun başladıktan sonra QR'ı b
 ### Tam ekran / pencere boyutu
 Canvas yüksekliği önceden yalnızca sayfa açılırken ayarlanıyordu; F11 ile tam ekrana geçince 640 px kalıyor ve oyuncu ekranın ortasında duruyordu. Artık `resize` olayında canvas yüksekliği ve oyuncunun konumu güncellenir (oyun sırasında da).
 
+### Küfürlü isim filtresi
+`js/game-rules.js` içindeki `isProfane(name)` hem telefonda hem monitörde kullanılır:
+- **Telefon:** İsim girilirken engellenir ("Bu isim uygun değil, lütfen başka bir isim yaz.").
+- **Monitör (savunma):** Telefon kontrolü atlatılsa bile küfürlü ad yok sayılır; oyuncu "Anonim" kalır ve skoru kaydedilmez.
+- **Tablolar:** Tabloda zaten duran küfürlü isimler hem monitördeki iki tablodan hem telefondaki listeden hem de canlı sıradan tamamen çıkarılır (silinmez, sadece gösterilmez).
+- **Yöntem:** İsim küçültülür, Türkçe harfler/aksanlar sadeleştirilir, leet yazımlar çözülür (`s1kt1r`, `0rospu`), tekrar eden harfler tek yapılır (`siiiktir`). Kısa/belirsiz kelimeler yalnızca tam kelime olarak eşleşir (`amk`, `sik`, `got`), böylece `Kamkaz`, `Sikke`, `Gotham`, `Kayarak` gibi masum isimler engellenmez; uzun kökler boşluk/nokta ile bölünse bile yakalanır (`s i k t i r`, `a.m.k`).
+- **Sınama:** 29 küfürlü yazımın 29'u yakalandı; 43 masum isimde yanlış engelleme yok (`Kayarak` ilk denemede yanlış engelleniyordu, düzeltildi).
+- **Sınırlar:** Hiçbir filtre kusursuz değildir. Liste `PROFANITY_TOKENS` ve `PROFANITY_ROOTS` dizilerinde düzenlenebilir. Etkinlikte skor tablosunu gözle kontrol edin.
+
 ### Monitör klavyesi
 Klavye artık oyunu başlatmaz, hiçbir şey yapmaz. Yalnızca `Monitor.html?debug=1` ile: Enter oyunu başlatır, ← → oyuncuyu oynatır. Böylece standa yanlışlıkla basılan tuş "Anonim" bir oyun açmaz.
 
@@ -221,7 +230,7 @@ Hepsi tarayıcıda çalışır, AWS maliyeti yoktur.
 - **Paralaks arka plan ve hız çizgileri:** Yavaş büyük bulutlar, orta hızda küçük "veri paketleri" ve hız arttıkça uzayan çizgiler akar. Hız çarpanıyla hızlanır.
 - **Tehlike vinyeti:** Ekran kenarları hız arttıkça turuncudan kırmızıya döner.
 - **Çarpma sahnesi:** Çarpınca bulut parçalanır (beyaz, mor ve kırmızı parçacıklar), ilk 0.7 sn yavaş çekim, tek bir sönümlü kırmızı flaş ve büyük ekran sallanması, ardından Windows "mavi ekran" esprisi (`:(`, "Bulutun çöktü.", `%N tamamlandı`, hata kodu `LEGACY_HARDWARE_COLLISION`). "Oyun bitti" kartı 1.9 sn sonra çıkar. **Skor kaydı ve telefona bildirim gecikmez**, yalnızca görsel gecikir. Yanıp sönen strobe yoktur (tek flaş, nabızlar saniyede ~1 kez).
-- **Dalga uyarıları:** Dalga başlayınca kenarlar yavaşça kırmızı nabız atar. Sunucu Duvarı'nda boşluğun üstünde zıplayan yeşil "▼ BOŞLUK" işareti çıkar. (Engellerin düşeceği hatları gösteren kırmızı gölge sütunları oyunu fazla kolaylaştırdığı için kaldırıldı.)
+- **Dalga uyarıları:** Dalga başlayınca kenarlar yavaşça kırmızı nabız atar. (Engellerin düşeceği hatları gösteren kırmızı gölge sütunları ve Sunucu Duvarı'nın yeşil "▼ BOŞLUK" işareti oyunu fazla kolaylaştırdığı için kaldırıldı.)
 - **Geri sayım:** Isınmanın son 3 saniyesinde ekran ortasında "3 - 2 - 1", sonra kısa "BAŞLA!" (tik sesleriyle).
 - **Skor animasyonu:** Puan alınca (logo, ramak kala, dönüm noktası) skor rakamı büyüyüp küçülür.
 - **Yeni sesler:** Lambda "whoosh", S3 metalik çın, EC2 dijital bip, daha belirgin seri bozulma sesi (alçalan çift ton + vuruş), mavi ekran hata sesi, geri sayım tikleri ve "BAŞLA" sesi.

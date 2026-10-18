@@ -34,6 +34,7 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     // Temel doğrulama
     if (!inputName)            { nameError.innerText = '⚠️ Lütfen bir isim girin!'; return; }
     if (inputName.length > 15) { nameError.innerText = '⚠️ İsim en fazla 15 karakter olabilir!'; return; }
+    if (isProfane(inputName))  { nameError.style.color = '#D13212'; nameError.innerText = '❌ Bu isim uygun değil, lütfen başka bir isim yaz.'; return; }
     if (!dynamoClient)         { nameError.innerText = '⏳ AWS bağlantısı bekleniyor...'; return; }
 
     // Butonu devre dışı bırak (çift tıklamayı önle)

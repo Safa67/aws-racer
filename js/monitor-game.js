@@ -504,9 +504,7 @@ function advanceWave(realMs) {
         } else if (wave.kind === 'wall') {
             if (wave.spawnClock >= WALL_INTERVAL && wave.walls < WALL_COUNT) {
                 wave.spawnClock -= WALL_INTERVAL;
-                const gap = nextWallGap();
-                spawnWall(gap);
-                wave.marker = { x: gap, until: performance.now() + 1700 };   // boşluk işareti (ekranda ▼▼▼)
+                spawnWall(nextWallGap());
                 wave.walls++;
             }
             if (wave.walls >= WALL_COUNT) { wave.phase = 'tail'; wave.t = 0; }
@@ -939,17 +937,6 @@ function drawHud(realMs, isDark) {
             ctx.fillText(big, canvas.width / 2, canvas.height * 0.42);
             ctx.restore();
         }
-    }
-
-    // Sunucu duvarı boşluk işareti: boşluğun üstünde zıplayan yeşil oklar
-    if (wave && wave.marker && performance.now() < wave.marker.until) {
-        const bob = Math.sin(performance.now() / 120) * 6;
-        ctx.fillStyle = '#1D8102';
-        ctx.font      = 'bold 30px Arial';
-        ctx.fillText('▼', wave.marker.x, 70 + bob);
-        ctx.fillText('▼', wave.marker.x, 100 + bob);
-        ctx.font      = 'bold 14px Arial';
-        ctx.fillText('BOŞLUK', wave.marker.x, 128 + bob);
     }
 
     // Isınma ipucu (ilk saniyeler): telefonu eğerek bulutu hareket ettirmeyi öğret
