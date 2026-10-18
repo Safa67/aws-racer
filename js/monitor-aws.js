@@ -128,8 +128,8 @@ function fetchLeaderboard() {
  * @param {number} finalScore - Hesaplanmış final skoru
  */
 function onGameOver(finalScore) {
-    // Test hızında (timeScale != 1) skorlar şişer; tabloya yazılmaz
-    if (typeof timeScale !== 'undefined' && timeScale !== 1) {
+    // Resmi hızdan (DEFAULT_TIME_SCALE) farklı test hızında skorlar karşılaştırılamaz; tabloya yazılmaz
+    if (typeof timeScale !== 'undefined' && timeScale !== DEFAULT_TIME_SCALE) {
         console.info('Test hızı aktif (' + timeScale + 'x): skor kaydedilmedi.');
     } else if (dynamoClient && activePlayerName !== 'Anonim') {
         dynamoClient.put({

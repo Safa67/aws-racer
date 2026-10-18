@@ -22,13 +22,12 @@ const FRAME_MS     = 1000 / 60;
 const MAX_FRAME_DT = 3;   // Sekme arka plandan dönünce/takılınca nesneler ışınlanmasın
 let lastFrameTime  = 0;
 
-// Oyun hızı çarpanı (test butonları): 1 = 60 Hz hissi, 2.4 = eski kodun 144 Hz'deki hızı.
-// 1 dışındaki modlarda skor tabloya yazılmaz (skorlar şişer).
-let timeScale = 1;
-try {
-    const saved = parseFloat(localStorage.getItem('awsracer_timescale'));
-    if ([1, 1.5, 2.4].indexOf(saved) !== -1) timeScale = saved;
-} catch (e) {}
+// Oyun hızı çarpanı. Resmi oyun hızı DEFAULT_TIME_SCALE (1.5): hızlar "60 fps'te kare başına piksel"
+// olarak ayarlı, bu çarpan hepsini birlikte hızlandırır. Test butonları farklı hız seçtirir;
+// resmi hızdan farklı modlarda skor tablosuna yazılmaz (skorlar karşılaştırılamaz).
+// Seçim kaydedilmez: sayfa yenilenince her zaman resmi hızla başlar.
+const DEFAULT_TIME_SCALE = 1.5;
+let timeScale = DEFAULT_TIME_SCALE;
 
 // AWS logosunun EKRANDA görünen puanı (içte x10 tutulur; ekran skoru içteki skorun /10'udur).
 const BASIC_POINTS = 50;
@@ -502,10 +501,9 @@ updateGame();
 
 // ─── Oyun Hızı Test Butonları ─────────────────────────────────────────────────
 
-/** Oyun hızını ayarlar (1 = normal, 2.4 = eski kodun 144 Hz'deki hızı) ve butonları günceller. */
+/** Oyun hızını ayarlar (1.5 = resmi hız, 1 = yavaş, 2.4 = eski kodun 144 Hz'deki hızı) ve butonları günceller. */
 function setTimeScale(value) {
     timeScale = value;
-    try { localStorage.setItem('awsracer_timescale', String(value)); } catch (e) {}
     document.querySelectorAll('#speedBox button').forEach(btn => {
         btn.classList.toggle('active', parseFloat(btn.dataset.scale) === value);
     });
