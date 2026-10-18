@@ -243,3 +243,43 @@ body.dark-theme #crashTitle { color: #FF4F4F; }
 body.dark-theme #crashSubtitle { color: #ddd; }
 body.dark-theme #finalScore { color: #00A1C9; }
 body.dark-theme #qrSubtitle { color: #ddd; }
+
+/* --- Oyun hızı test butonları (sol alt, tema butonunun yanında) --- */
+#speedBox {
+    position: absolute;
+    bottom: 20px;
+    left: 170px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #545B64;
+}
+
+#speedBox button {
+    padding: 8px 12px;
+    font-size: 13px;
+    background: white;
+    color: #16191F;
+    border: 1px solid #AAB7B8;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#speedBox button.active {
+    background: #FF9900;
+    border-color: #FF9900;
+    color: white;
+    font-weight: bold;
+}
+
+body.dark-theme #speedBox {
+    color: #AAB7B8;
+}
+
+body.dark-theme #speedBox button:not(.active) {
+    background: #232F3E;
+    color: #FFFFFF;
+    border-color: #545B64;
+}

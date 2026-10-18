@@ -128,7 +128,10 @@ function fetchLeaderboard() {
  * @param {number} finalScore - Hesaplanmış final skoru
  */
 function onGameOver(finalScore) {
-    if (dynamoClient && activePlayerName !== 'Anonim') {
+    // Test hızında (timeScale != 1) skorlar şişer; tabloya yazılmaz
+    if (typeof timeScale !== 'undefined' && timeScale !== 1) {
+        console.info('Test hızı aktif (' + timeScale + 'x): skor kaydedilmedi.');
+    } else if (dynamoClient && activePlayerName !== 'Anonim') {
         dynamoClient.put({
             TableName: AWS_CONFIG.dynamoTable,
             Item: {

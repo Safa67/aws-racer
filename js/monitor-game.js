@@ -21,6 +21,20 @@ canvas.height = window.innerHeight;
 const FRAME_MS     = 1000 / 60;
 const MAX_FRAME_DT = 3;   // Sekme arka plandan dönünce/takılınca nesneler ışınlanmasın
 let lastFrameTime  = 0;
+
+// Oyun hızı çarpanı (test butonları): 1 = 60 Hz hissi, 2.4 = eski kodun 144 Hz'deki hızı.
+// 1 dışındaki modlarda skor tabloya yazılmaz (skorlar şişer).
+let timeScale = 1;
+try {
+    const saved = parseFloat(localStorage.getItem('awsracer_timescale'));
+    if ([1, 1.5, 2.4].indexOf(saved) !== -1) timeScale = saved;
+} catch (e) {}
+
+// AWS logosunun EKRANDA görünen puanı (içte x10 tutulur; ekran skoru içteki skorun /10'udur).
+const BASIC_POINTS = 50;
+
+// Güçlendirici alınınca beliren yüzen yazılar
+let popups = [];
 let nextSpeedUp    = 500; // Bir sonraki hızlanma eşiği (puan)
 
 const WARMUP_MS = 4000; // Oyun başında engelsiz ısınma süresi
@@ -145,13 +159,18 @@ function spawnCollectible() {
  */
 function applyPowerup(type) {
     // Isınma turunda güçlendiriciler alınır ama hiçbir etkisi olmaz (puan da yok)
-    if (Date.now() < warmupUntil) return;
+    if (Date.now() < warmupUntil) return { text: 'Isınma: etkisiz', color: '#8A9099' };
+
+    let label = null;
 
     if (type === 'basic') {
-        score += (50 * scoreMultiplier);
+        const gained = BASIC_POINTS * scoreMultiplier;
+        score += gained * 10; // ekran skoru içteki skorun /10'udur
+        label = { text: '+' + gained, color: '#FF9900' };
 
     } else if (type === 'lambda') {
         // Yenilmezlik + Hız artışı (4 saniye)
+        label = { text: '⚡ Yenilmez!', color: '#FF9900' };
         isInvincible = true;
         let oldSpeed  = speedMultiplier;
         speedMultiplier += 1.5;
@@ -163,14 +182,18 @@ function applyPowerup(type) {
 
     } else if (type === 's3') {
         // Bir çarpmayı engelleyen kalkan
+        label = { text: '🪣 Kalkan!', color: '#0073BB' };
         hasShield = true;
 
     } else if (type === 'ec2') {
         // 5 saniye boyunca x2 puan
+        label = { text: '🖥️ x2 Puan!', color: '#1D8102' };
         scoreMultiplier = 2;
         clearTimeout(ec2Timer);
         ec2Timer = setTimeout(() => { scoreMultiplier = 1; }, 5000);
     }
+
+    return label;
 }
 
 // ─── Çizim Yardımcıları ───────────────────────────────────────────────────────
@@ -224,7 +247,8 @@ function drawObject(obj, data, isEnemy) {
 function updateGame(now) {
     // dt: geçen süre / 60 fps karesi. İlk karede ve ölçülemeyen durumda 1.
     now = now || performance.now();
-    const dt = lastFrameTime ? Math.max(0.2, Math.min((now - lastFrameTime) / FRAME_MS, MAX_FRAME_DT)) : 1;
+    const baseDt = lastFrameTime ? Math.max(0.2, Math.min((now - lastFrameTime) / FRAME_MS, MAX_FRAME_DT)) : 1;
+    const dt = baseDt * timeScale;
     lastFrameTime = now;
 
     let isDark = document.body.classList.contains('dark-theme');
@@ -275,7 +299,8 @@ function updateGame(now) {
         let cy = col.y - 20; // Objenin tahmini merkezi
 
         if (Math.abs(px - cx) < 55 && Math.abs(py - cy) < 55) {
-            applyPowerup(col.itemData.type);
+            const label = applyPowerup(col.itemData.type);
+            if (label) popups.push({ x: col.x, y: col.y - 40, text: label.text, color: label.color, life: 70 });
             col.y = canvas.height + 200; // Ekrandan çıkar
         }
     }
@@ -365,6 +390,19 @@ function updateGame(now) {
     ctx.fillText('☁️', 0, 0);
     ctx.restore();
 
+    // Yüzen "+50" yazıları: yukarı süzülüp kaybolur
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 28px Arial';
+    popups.forEach(p => {
+        p.life -= dt;
+        p.y    -= 0.9 * dt;
+        ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 30));
+        ctx.fillStyle   = p.color;
+        ctx.fillText(p.text, p.x, p.y);
+    });
+    ctx.globalAlpha = 1;
+    popups = popups.filter(p => p.life > 0);
+
     // Isınma ipucu (ilk saniyeler): telefonu eğerek bulutu hareket ettirmeyi öğret
     if (Date.now() < warmupUntil) {
         ctx.fillStyle = isDark ? '#FFFFFF' : '#232F3E';
@@ -420,6 +458,7 @@ function resetGame() {
 
     warmupUntil = 0;
     nextSpeedUp = 500;
+    popups      = [];
     clearTimeout(lambdaTimer);
     clearTimeout(ec2Timer);
 
@@ -460,3 +499,22 @@ window.addEventListener('keyup', () => { player.speedX = 0; });
 
 // Oyun döngüsünü başlat
 updateGame();
+
+// ─── Oyun Hızı Test Butonları ─────────────────────────────────────────────────
+
+/** Oyun hızını ayarlar (1 = normal, 2.4 = eski kodun 144 Hz'deki hızı) ve butonları günceller. */
+function setTimeScale(value) {
+    timeScale = value;
+    try { localStorage.setItem('awsracer_timescale', String(value)); } catch (e) {}
+    document.querySelectorAll('#speedBox button').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.scale) === value);
+    });
+}
+
+document.querySelectorAll('#speedBox button').forEach(btn => {
+    btn.addEventListener('click', () => {
+        btn.blur(); // Boşluk/Enter tuşu butona basmasın
+        setTimeScale(parseFloat(btn.dataset.scale));
+    });
+});
+setTimeScale(timeScale);
