@@ -133,7 +133,7 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
-    background: rgba(255, 255, 255, 0.98);
+    background: rgba(255, 255, 255, 0.93);   /* arkadaki demo hafifçe görünsün */
     padding: 40px;
     border-radius: 12px;
     border: 1px solid #D5DBDB;
@@ -229,7 +229,7 @@ body.dark-theme #gameOver {
 }
 
 body.dark-theme #qrOverlay {
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.82);
     border: 3px solid #00A1C9;
     box-shadow: 0 0 20px rgba(0, 161, 201, 0.5);
     color: white;

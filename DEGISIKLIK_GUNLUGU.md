@@ -30,8 +30,12 @@ Proje AWS kulübü için yapıldığı için iki kısıt baştan geçerlidir: **
 |---|---|---|
 | `f0d7b35` | push edildi | Bu günlük dosyası |
 | `8d76867` | push edildi | Kök adres (`/`) `Monitor.html`'e yönlenir (önceden 404 veriyordu) |
-| `ba00f6c` | **yerelde, push edilmedi** | Resmi oyun hızı 1.5x |
-| `1e2b8a2` | **yerelde, push edilmedi** | Zorluk eğrisi, seri, ramak kala, dalga olayları, juice, ses, canlı sıra, tek kontrolcü kilidi, tarama azaltma |
+| `ba00f6c` | push edildi | Resmi oyun hızı 1.5x |
+| `1e2b8a2` | push edildi | Zorluk eğrisi, seri, ramak kala, dalga olayları, juice, ses, canlı sıra, tek kontrolcü kilidi, tarama azaltma |
+| `7ddd458` | push edildi | Günlük dosyası güncellemesi |
+| `96eb525` | push edildi | Tam ekran/pencere boyutu değişince canvas yüksekliği güncellenir |
+| `5f2f09b` | push edildi | Kalkan ilk çarpmada gider (Lambda aktifken de), kalkan Lambda aktifken görünür |
+| (sonraki) | push edildi | Bekleme ekranı demosu (QR arkasında bot oyunu) |
 
 Eski yerel (commit edilmemiş) değişiklikler `git stash` içinde `stash@{0}` olarak duruyor. İçinde bozuk bir regex vardı (bölüm 3). İhtiyaç yoksa `git stash drop` ile silinebilir.
 
@@ -136,6 +140,9 @@ Bir QR'ı iki telefon aynı anda okutursa ya da oyun başladıktan sonra QR'ı b
 - "Oyun bitti" ekranı yalnızca odanın sahibine gösterilir. Başa dönünce yeni oda, kilitsiz başlar.
 - Sahibi olan telefon bağlantısını kaybederse oda o oyun boyunca ona ait kalır (oyun zaten kısa sürede biter, sonra yeni QR çıkar).
 
+### Tam ekran / pencere boyutu
+Canvas yüksekliği önceden yalnızca sayfa açılırken ayarlanıyordu; F11 ile tam ekrana geçince 640 px kalıyor ve oyuncu ekranın ortasında duruyordu. Artık `resize` olayında canvas yüksekliği ve oyuncunun konumu güncellenir (oyun sırasında da).
+
 ### Monitör klavyesi
 Klavye artık oyunu başlatmaz, hiçbir şey yapmaz. Yalnızca `Monitor.html?debug=1` ile: Enter oyunu başlatır, ← → oyuncuyu oynatır. Böylece standa yanlışlıkla basılan tuş "Anonim" bir oyun açmaz.
 
@@ -198,6 +205,16 @@ Geçilebilirlik, bir **bot oyuncuyla** sınandı: Bot ekrana bakıp en güvenli 
 - **Negatif kontrol:** koridor mantığı kapatılıp engeller rastgele konunca rastgele yağmurda bot 2/2 öldü, yani test gerçekten ayırt edici. (Rastgele duvar botu öldürmedi: bot mükemmel okuyup en hızlı hareket ediyor, duvar için asıl güvence ulaşılabilirlik sınırıdır.)
 - Bot "mükemmel" oyuncudur; gerçek oyuncu daha yavaştır. Bu yüzden ulaşılabilirlik hesabı oyuncunun yanal hızının yalnızca %45'ini kullanır.
 
+### Kalkan (S3)
+Kalkan ilk çarpmada gider. Önceden Lambda (yenilmezlik) aktifken çarpan engeller kalkanı harcamıyordu ve ekranda yalnızca Lambda halkası göründüğü için kalkan hiç görünmüyordu. Artık kalkan her durumda ilk çarpmada harcanır, Lambda koruyorsa seri bozulmaz, kalkan halkası Lambda aktifken de çizilir.
+
+### Bekleme ekranı demosu
+Oyuncu beklenirken (QR ekranı) QR kartının arkasında bir bot bulutu oynar (`js/monitor-demo.js`). Engeller düşer, bot ödülleri toplar, engellerden kaçar; üstte "▶ DEMO · Sen de oyna: QR kodu okut!" yazar. QR kartı hafif saydamlaştırıldı ki arkada demo görünsün.
+- **AWS maliyeti sıfır:** Tamamen monitör bilgisayarının tarayıcısında çalışır. MQTT yayını, DynamoDB çağrısı ya da başka bir ağ isteği yapmaz (32 saniyelik testte hepsi 0), ses çıkarmaz, skor kaydetmez, canlı sırayı etkilemez.
+- Gerçek oyun başlayınca (`startGame`) ve bitince (`endGame`) demo sıfırlanır; "Başa dön" sonrası yeniden oynar. Gerçek oyunun durumuna dokunmaz (kendi değişkenleri vardır).
+- Bot sürekli ılımlı hızda (1.25x) oynar, çarparsa sessizce kaybolur, oyun bitmez. Sekme gizliyse çalışmaz.
+- Kapatmak için `js/monitor-demo.js` içinde `DEMO_ENABLED = false`.
+
 ### Juice (geri bildirim)
 - **Parçacıklar:** ödül alınca renkli patlama, kalkan kırılınca mavi patlama, çarpmada kırmızı, konfeti (dönüm noktası / ilk 3).
 - **Ekran sallanması:** kalkan kırılması, ramak kala, dalga başlangıcı (dünya sallanır, yazılar sallanmaz).
@@ -225,6 +242,7 @@ Proje AWS kulübünün kredisiyle çalışır. Bu yüzden:
 - Yeni mekanikler (zorluk, seri, ramak kala, dalga olayları, kutlamalar, juice, ses, canlı sıra) tamamen tarayıcıda çalışır. **Yeni AWS servisi ya da çağrısı eklenmedi.**
 - Canlı sıra ek tarama yapmaz, önbellekten hesaplanır. Telefona sıra bilgisi gönderilmez (ek IoT mesajı olmasın diye).
 - Ses WebAudio ile üretilir (S3/CloudFront'ta dosya yok).
+- Bekleme demosu yerel bir bottur; video dosyası ya da AWS çağrısı yoktur (bölüm 8).
 - **Tasarruf:** Telefon skor tablosunu önceden her 10 saniyede bir tüm tabloyu tarayarak yeniliyordu. Artık yalnızca oyun başında bir kez çeker (ölçüm: isim kontrolünden sonraki 32 sn içinde ek tarama 0). "Oyun bitti" yedek yoklaması 3 sn yerine 10 sn'de bir (asıl sinyal MQTT ile anında gelir).
 - Oyuncu gönderim sıklığı 33 ms (~30 mesaj/sn), değişmeyen değer tekrar gönderilmez.
 
@@ -288,6 +306,7 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 |---|---|
 | `Monitor.html`, `js/monitor-game.js` | Oyun, çizim, dt tabanlı döngü, zorluk, seri, dalgalar, kutlamalar, canlı sıra, hız test butonları |
 | `js/monitor-fx.js` | Parçacıklar, ekran sallanması, WebAudio ses efektleri |
+| `js/monitor-demo.js` | Bekleme ekranı demosu (QR arkasında bot oyunu, AWS çağrısı yok) |
 | `js/monitor-mqtt.js` | MQTT bağlantısı, eğim eğrisi, oda kilidi, oyuncu adı/cihaz kodu işleme |
 | `js/monitor-aws.js` | Cognito, DynamoDB tarama/yazma, skor tabloları, günün sırası önbelleği, `escapeHtml`, `scanAll` |
 | `js/monitor-qr.js` | QR kod |

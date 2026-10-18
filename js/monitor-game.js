@@ -704,6 +704,8 @@ function updateGame(now) {
 
     // Oyun başlamadıysa veya bittiyse sadece boş canvas göster
     if (!gameStarted || isGameOver) {
+        // Oyuncu beklenirken (QR ekranı) arka planda yerel bir demo oynar: AWS çağrısı yok, ses yok
+        if (!gameStarted && !isGameOver && typeof demoUpdate === 'function') demoUpdate(dt, baseDt * FRAME_MS, isDark);
         fx.update(dt);
         requestAnimationFrame(updateGame);
         return;
@@ -890,6 +892,7 @@ function clearRunState() {
 function endGame() {
     if (isGameOver) return; // aynı karede birden çok çarpışma skoru iki kez kaydetmesin
     isGameOver = true;
+    if (typeof demoReset === 'function') demoReset();
     sfx.crash();
     document.getElementById('gameOver').style.display  = 'block';
     document.getElementById('finalScore').innerText    = Math.floor(score / 10);
@@ -930,6 +933,7 @@ function setTargetSpeed(speed) {
 function startGame() {
     if (gameStarted || isGameOver) return;
     clearRunState();
+    if (typeof demoReset === 'function') demoReset();   // bekleme demosunu temizle
     gameStarted = true;
     document.getElementById('qrOverlay').style.display = 'none';
     warmupUntil = Date.now() + WARMUP_MS;
