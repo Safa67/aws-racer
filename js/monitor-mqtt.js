@@ -21,6 +21,7 @@
 // Oyuncu adı — hem bu modül (MQTT mesajında güncellenir)
 // hem de monitor-aws.js (DynamoDB kaydında kullanılır) tarafından okunur.
 let activePlayerName = 'Anonim';
+let activeDeviceId   = null; // Telefonun rastgele cihaz kodu (3 hak kuralı için skorla birlikte saklanır)
 
 // ─── MQTT Bağlantı Yöneticisi ─────────────────────────────────────────────────
 
@@ -146,6 +147,10 @@ function _handleMqttMessage(topic, message) {
             document.getElementById('playerVal').innerText = activePlayerName;
         }
 
+        if (desired.deviceId && desired.deviceId !== activeDeviceId) {
+            activeDeviceId = String(desired.deviceId).slice(0, 64);
+        }
+
         // ── Oyun Kontrolü ──────────────────────────────────────────────────
         if (desired.tilt !== undefined) {
             // İlk tilt verisi gelince oyunu başlat
@@ -153,10 +158,14 @@ function _handleMqttMessage(topic, message) {
 
             // Kavisli Duyarlılık: Küçük eğimlerde yüksek hassasiyet, büyük eğimlerde güç.
             // (Math.pow ile doğrusal olmayan bir ivmelenme sağlanır)
-            const rawTilt     = desired.tilt;
-            const sensitivity = 7.2;
-            const exponent    = 1.12;
-            const curvedSpeed = Math.sign(rawTilt) * Math.pow(Math.abs(rawTilt), exponent) / sensitivity;
+            // Eğri: küçük eğimlerde sakin (üs 1.4), 45° ve üstünde en yüksek hız (9.85 px/kare).
+            // Eski eğri (açı^1.12 / 7.2) küçük eğimlerde fazla hareketliydi.
+            const rawTilt   = desired.tilt;
+            const MAX_TILT  = 45;
+            const MAX_SPEED = 9.85;
+            const exponent  = 1.4;
+            const ratio     = Math.min(Math.abs(rawTilt) / MAX_TILT, 1);
+            const curvedSpeed = Math.sign(rawTilt) * MAX_SPEED * Math.pow(ratio, exponent);
 
             setTargetSpeed(curvedSpeed);
         }

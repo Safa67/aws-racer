@@ -393,3 +393,102 @@ body.dark-theme .tut-text b {
 body.dark-theme .tut-hint {
     color: #AAB7B8;
 }
+
+/* ============================================
+   KALİBRASYON + YÖN TUŞLARI
+   ============================================ */
+
+.tut-pad-opt {
+    display: block;
+    width: 100%;
+    max-width: 340px;
+    margin: 4px 0 6px 0;
+    font-size: 14px;
+    color: #545B64;
+    text-align: left;
+}
+
+#recalBtn {
+    margin-top: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    background: transparent;
+    color: #545B64;
+    border: 1px solid #AAB7B8;
+    border-radius: 4px;
+}
+
+#padControls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    z-index: 500;
+    touch-action: none;
+}
+
+#padControls button {
+    flex: 1;
+    height: 38vh;
+    font-size: 64px;
+    border: none;
+    border-radius: 12px;
+    background: #232F3E;
+    color: white;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#padControls button.pressed {
+    background: #FF9900;
+}
+
+body.dark-theme .tut-pad-opt,
+body.dark-theme #recalBtn {
+    color: #AAB7B8;
+}
+
+/* Hassasiyet seçimi */
+#sensRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.sens-label {
+    font-size: 12px;
+    color: #545B64;
+}
+
+.sens-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+    background: white;
+    color: #16191F;
+    border: 1px solid #AAB7B8;
+    border-radius: 4px;
+}
+
+.sens-btn.active {
+    background: #FF9900;
+    border-color: #FF9900;
+    color: white;
+    font-weight: bold;
+}
+
+body.dark-theme .sens-label {
+    color: #AAB7B8;
+}
+
+body.dark-theme .sens-btn:not(.active) {
+    background: #232F3E;
+    color: #FFFFFF;
+    border-color: #545B64;
+}

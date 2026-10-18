@@ -69,11 +69,19 @@ body {
 }
 
 /* --- Sol: Liderlik Tablosu --- */
-#leaderboard {
+/* Sol sütun: iki tablo alt alta */
+#boards {
     position: absolute;
     top: 130px;
     left: 20px;
-    font-size: 15px;
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.board {
+    font-size: 14px;
     background: rgba(255, 255, 255, 0.95);
     padding: 15px;
     border-radius: 8px;
@@ -84,7 +92,7 @@ body {
     box-shadow: 0 1px 4px rgba(0, 28, 36, 0.1);
 }
 
-#leaderboard h3 {
+.board h3 {
     margin: 0 0 10px 0;
     color: #16191F;
     font-size: 16px;
@@ -92,12 +100,13 @@ body {
     padding-bottom: 5px;
 }
 
-#leaderList {
+#leaderList,
+#dailyList {
     list-style-type: none;
     padding: 0;
     margin: 0;
     color: #545B64;
-    line-height: 1.6;
+    line-height: 1.45;
 }
 
 /* --- Oyun Sonu Ekranı (CRASH!) --- */
@@ -196,18 +205,19 @@ body.dark-theme #legend h3 {
     border-bottom: 1px solid #444;
 }
 
-body.dark-theme #leaderboard {
+body.dark-theme .board {
     background: rgba(0, 0, 0, 0.8);
     border: 1px solid #FF9900;
     box-shadow: 0 0 10px rgba(255, 153, 0, 0.3);
 }
 
-body.dark-theme #leaderboard h3 {
+body.dark-theme .board h3 {
     color: #FF9900;
     border-bottom: 1px solid #444;
 }
 
-body.dark-theme #leaderList {
+body.dark-theme #leaderList,
+body.dark-theme #dailyList {
     color: #ddd;
 }
 

@@ -40,6 +40,7 @@
         <button id="connectBtn">Bağlan ve Oyna 🚀</button>
 
         <p id="nameError" style="color:#D13212; font-size:13px; margin-top:10px; min-height:18px;"></p>
+        <p style="color:#8A9099; font-size:11px; margin-top:12px; max-width:300px;">ℹ️ Skor tablosu için ismin ve bu telefona ait rastgele bir kod saklanır; etkinlik sonrası silinir.</p>
         <p id="leaderPreview" style="color:#545B64; font-size:12px; margin-top:5px;">Yükleniyor...</p>
     </div>
 
@@ -58,6 +59,9 @@
             <div class="tut-icon">💾</div>
             <div class="tut-text"><b>Eski donanımlardan kaç</b><br>Sunucu rafı, disket, mavi ekran ve kablo yumağına çarparsan oyun biter.</div>
         </div>
+        <label class="tut-pad-opt">
+            <input type="checkbox" id="padModeChk"> 🎮 Eğmek yerine ekrandaki ◀ ▶ tuşlarıyla oyna
+        </label>
         <button id="tutReadyBtn">Hazırım, Başla 🚀</button>
         <p class="tut-hint">Butona basınca oyun, telefonu eğdiğin an başlar.</p>
     </div>
@@ -84,6 +88,18 @@
             </div>
             <!-- id="tiltDisplay": startSensing() tarafından güncellenir -->
             <div class="tilt-value" id="tiltDisplay">Eğim: 0°</div>
+            <div id="sensRow">
+                <span class="sens-label">Hassasiyet:</span>
+                <button type="button" class="sens-btn" data-sens="low">Rahat</button>
+                <button type="button" class="sens-btn" data-sens="normal">Normal</button>
+                <button type="button" class="sens-btn" data-sens="high">Hassas</button>
+            </div>
+            <button id="recalBtn" type="button">⟲ Sıfırla (telefonu rahat tuttuğun açıyı merkez yap)</button>
+        </div>
+        <!-- Yön tuşları: sadece "tuşlarla oyna" seçilirse görünür -->
+        <div id="padControls" style="display:none;">
+            <button id="padLeft" type="button" aria-label="Sol">◀</button>
+            <button id="padRight" type="button" aria-label="Sağ">▶</button>
         </div>
 
         <!-- Canlı Liderlik Tablosu -->

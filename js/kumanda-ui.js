@@ -11,9 +11,16 @@
  */
 
 let PLAYER_NAME      = '';
+let ATTEMPTS_LEFT    = MAX_ATTEMPTS; // Bu oyun dahil kalan hak
 let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
 let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
-const SENSOR_SMOOTH  = 0.5;  // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı). Monitörde ayrıca lerp var; çift yumuşatma gecikme yaratmasın diye 0.5.
+const SENSOR_SMOOTH  = 0.3;  // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı). 0.5 fazla titrek hissettirdi.
+
+// Daha önce bu telefonda kullanılan isim kutuya otomatik gelir
+try {
+    const savedName = localStorage.getItem('awsracer_name');
+    if (savedName) document.getElementById('playerNameInput').value = savedName;
+} catch (e) {}
 
 // ─── Bağlan Butonu ────────────────────────────────────────────────────────────
 
@@ -33,12 +40,12 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     nameError.style.color = '#FF9900';
     nameError.innerText = '🔍 İsim kontrol ediliyor...';
 
-    // DynamoDB'de bu isim daha önce kullanılmış mı? (büyük/küçük harf DUYARLI — "Ali" ve "ali" farklı sayılır)
-    dynamoClient.scan({
+    // Bu isim başka bir cihaza mı ait? Bu cihaz kaç kez oynadı? (tek taramada ikisi birden)
+    scanAll({
         TableName: AWS_CONFIG.dynamoTable,
-        FilterExpression: 'PlayerName = :n',
-        ExpressionAttributeValues: { ':n': inputName }
-    }, function (err, data) {
+        FilterExpression: 'PlayerName = :n OR DeviceId = :d',
+        ExpressionAttributeValues: { ':n': inputName, ':d': DEVICE_ID }
+    }, function (err, items) {
         connectBtn.disabled = false;
 
         if (err) {
@@ -48,17 +55,36 @@ document.getElementById('connectBtn').addEventListener('click', () => {
             return;
         }
 
-        if (data.Items && data.Items.length > 0) {
-            // Bu isim zaten var — engelle
+        const mine   = items.filter(i => i.DeviceId === DEVICE_ID);
+        const others = items.filter(i => i.DeviceId !== DEVICE_ID && i.PlayerName === inputName);
+
+        // İsim başka bir cihaza ait (veya eski, cihaz kodu olmayan bir kayıtta var)
+        if (others.length > 0) {
             nameError.style.color = '#D13212';
-            nameError.innerText = `❌ "${inputName}" ismi zaten kullanılmış! Lütfen farklı bir isim girin.`;
+            nameError.innerText = `❌ "${inputName}" ismi başkası tarafından kullanılıyor! Lütfen farklı bir isim girin.`;
             document.getElementById('playerNameInput').focus();
             return;
         }
 
-        // İsim benzersiz — oyuna başla
+        // Bu cihaz daha önce başka bir isimle oynadıysa aynı ismi kullanmak zorunda
+        if (mine.length > 0 && mine[0].PlayerName !== inputName) {
+            nameError.style.color = '#D13212';
+            nameError.innerText = `❌ Bu telefonla daha önce "${mine[0].PlayerName}" ismiyle oynadın. Aynı ismi kullan.`;
+            document.getElementById('playerNameInput').value = mine[0].PlayerName;
+            return;
+        }
+
+        if (mine.length >= MAX_ATTEMPTS) {
+            nameError.style.color = '#D13212';
+            nameError.innerText = `❌ ${MAX_ATTEMPTS} oyun hakkını da kullandın. Oynadığın için teşekkürler!`;
+            return;
+        }
+
+        ATTEMPTS_LEFT = MAX_ATTEMPTS - mine.length;
+        try { localStorage.setItem('awsracer_name', inputName); } catch (e) {}
+
         nameError.style.color = '#00FF00';
-        nameError.innerText = '✅ Bağlanılıyor...';
+        nameError.innerText = `✅ Kalan hakkın: ${ATTEMPTS_LEFT}/${MAX_ATTEMPTS} — Bağlanılıyor...`;
         setTimeout(() => startPlaying(inputName), 400);
     });
 });
@@ -79,17 +105,20 @@ function showGameOver() {
         <div style="text-align:center; padding: 40px 20px;">
             <h1 style="color:#D13212; font-size:40px; margin-bottom:20px;">OYUN BİTTİ! 🚀</h1>
             <p style="font-size:20px; color:#545B64; margin-bottom: 20px;">Oynadığın için teşekkürler!</p>
-            <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>10 saniye içinde</b> otomatik kapatılacaktır.</p>
+            <p style="font-size:16px; color:#545B64; margin-bottom: 20px;">${ATTEMPTS_LEFT > 1
+                ? 'Kalan hakkın: <b>' + (ATTEMPTS_LEFT - 1) + '/' + MAX_ATTEMPTS + '</b> — tekrar denemek için ekrandaki QR\'ı yeniden okut.'
+                : 'Tüm oyun haklarını kullandın.'}</p>
+            <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>3 saniye içinde</b> otomatik kapatılacaktır.</p>
         </div>
     `;
 
-    // 10 saniye sonra sekmeyi kapatmayı dene, olmazsa AWS sayfasına yönlendir.
+    // 3 saniye sonra sekmeyi kapatmayı dene, olmazsa AWS sayfasına yönlendir.
     // Bazı mobil tarayıcılar (ör. Safari) QR ile açılan sekmelerde window.close()'a izin verir,
     // izin vermeyenlerde yönlendirme bir nevi "çıkış" görevi görür.
     setTimeout(() => {
         window.close();
         window.location.href = "https://aws.amazon.com/tr/";
-    }, 10000);
+    }, 3000);
 }
 
 // ─── Oyuna Başla ──────────────────────────────────────────────────────────────
@@ -134,6 +163,12 @@ function startPlaying(name) {
 document.getElementById('tutReadyBtn').addEventListener('click', () => {
     document.getElementById('tutorialOverlay').style.display = 'none';
 
+    // Tuş modu seçildiyse sensör/izin gerekmez
+    if (document.getElementById('padModeChk').checked) {
+        startPadMode();
+        return;
+    }
+
     // iOS: Sensör izni gerekiyor
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -151,16 +186,68 @@ document.getElementById('tutReadyBtn').addEventListener('click', () => {
 
 // ─── Gyroscope Okuma ──────────────────────────────────────────────────────────
 
+// Kalibrasyon: oyuncunun telefonu rahat tuttuğu açı "merkez" (0°) sayılır.
+const CALIB_SAMPLES = 8;     // ilk ~8 sensör olayının ortalaması (~130 ms)
+const CALIB_MAX     = 30;    // bunun üstündeki ofset kasıtlı eğim sayılır, merkez yapılmaz
+// Hassasiyet: telefondaki eğim bu çarpanla büyütülüp küçültülür (kişiye göre ayar).
+const SENS_LEVELS = { low: 0.7, normal: 1.0, high: 1.3 };
+let sensGain = SENS_LEVELS.normal;
+try {
+    const savedSens = localStorage.getItem('awsracer_sens');
+    if (SENS_LEVELS[savedSens]) sensGain = SENS_LEVELS[savedSens];
+} catch (e) {}
+
+function applySensButtons() {
+    document.querySelectorAll('.sens-btn').forEach(btn => {
+        btn.classList.toggle('active', SENS_LEVELS[btn.dataset.sens] === sensGain);
+    });
+}
+document.querySelectorAll('.sens-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        sensGain = SENS_LEVELS[btn.dataset.sens];
+        try { localStorage.setItem('awsracer_sens', btn.dataset.sens); } catch (e) {}
+        applySensButtons();
+    });
+});
+applySensButtons();
+
+let calibOffset   = 0;
+let calibSum      = 0;
+let calibCount    = 0;
+let rawGammaLast  = 0;
+let padMode       = false;
+
+/** Mevcut tutuş açısını merkez yapar (Sıfırla butonu). */
+function recalibrate() {
+    calibOffset = Math.max(-CALIB_MAX, Math.min(CALIB_MAX, rawGammaLast));
+    smoothedGamma = 0;
+}
+
+document.getElementById('recalBtn').addEventListener('click', recalibrate);
+
 /**
  * Telefon eğim verisini okur, tilt çubuğunu günceller ve AWS'ye gönderir.
+ * İlk birkaç olay kalibrasyon için kullanılır; veri gönderimi ondan sonra başlar.
  */
 function startSensing() {
     window.addEventListener('deviceorientation', (event) => {
+        if (gameOverShown) return; // Oyun bitti ekranında arayüz öğeleri yok, gönderim de gerekmiyor
         const rawGamma = event.gamma; // Sağa/sola eğim açısı (°)
         if (rawGamma === null) return;
+        rawGammaLast = rawGamma;
+
+        // Başlangıç kalibrasyonu: ilk olayların ortalaması merkez olur
+        if (calibCount < CALIB_SAMPLES) {
+            calibSum += rawGamma;
+            calibCount++;
+            if (calibCount === CALIB_SAMPLES) {
+                calibOffset = Math.max(-CALIB_MAX, Math.min(CALIB_MAX, calibSum / CALIB_SAMPLES));
+            }
+            return;
+        }
 
         // EMA Filtresi: Sensördeki titremeleri ve ani sıçramaları temizler
-        smoothedGamma = (rawGamma * SENSOR_SMOOTH) + (smoothedGamma * (1 - SENSOR_SMOOTH));
+        smoothedGamma = ((rawGamma - calibOffset) * SENSOR_SMOOTH) + (smoothedGamma * (1 - SENSOR_SMOOTH));
 
         // Tilt değerini ekranda göster
         document.getElementById('tiltDisplay').innerText = `Eğim: ${Math.round(smoothedGamma)}°`;
@@ -169,8 +256,55 @@ function startSensing() {
         updateTiltBar(smoothedGamma);
 
         // AWS'ye filtrelenmiş veriyi gönder
-        sendDataToAWS(Math.round(smoothedGamma), PLAYER_NAME);
+        sendDataToAWS(Math.round(smoothedGamma * sensGain), PLAYER_NAME);
     });
+}
+
+// ─── Yön Tuşları (isteğe bağlı) ───────────────────────────────────────────────
+
+const PAD_TILT = 35; // Tuşa basılıyken gönderilen eşdeğer eğim (monitörde ~7.5 hıza denk gelir)
+
+/**
+ * Eğim yerine ekrandaki ◀ ▶ tuşlarıyla oynamayı başlatır.
+ * Basılı tutulan yön PAD_TILT olarak gönderilir; bırakılınca 0. 100 ms'de bir tekrar gönderilir
+ * (kopan paket tuşu takılı bırakmasın).
+ */
+function startPadMode() {
+    padMode = true;
+    let dir = 0;
+    const left  = document.getElementById('padLeft');
+    const right = document.getElementById('padRight');
+    document.getElementById('padControls').style.display = 'flex';
+    document.getElementById('recalBtn').style.display = 'none';
+    document.getElementById('sensRow').style.display  = 'none';
+    document.querySelector('.tilt-label').innerText = '🎮 Tuşlarla yönlendir';
+
+    const press = (d, btn) => (e) => {
+        e.preventDefault();
+        dir = d;
+        btn.classList.add('pressed');
+    };
+    const release = (btn) => (e) => {
+        e.preventDefault();
+        // Diğer tuş hâlâ basılıysa onun yönünü koru
+        if (btn === left && right.classList.contains('pressed')) dir = 1;
+        else if (btn === right && left.classList.contains('pressed')) dir = -1;
+        else dir = 0;
+        btn.classList.remove('pressed');
+    };
+    [[left, -1], [right, 1]].forEach(([btn, d]) => {
+        btn.addEventListener('pointerdown', press(d, btn));
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, release(btn)));
+        btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+
+    const padTimer = setInterval(() => {
+        if (gameOverShown) { clearInterval(padTimer); return; }
+        const value = dir * PAD_TILT;
+        document.getElementById('tiltDisplay').innerText = dir === 0 ? 'Tuş: -' : (dir < 0 ? 'Tuş: ◀' : 'Tuş: ▶');
+        updateTiltBar(value);
+        sendDataToAWS(value, PLAYER_NAME);
+    }, 50);
 }
 
 /**

@@ -15,6 +15,7 @@ const ctx    = canvas.getContext('2d');
 canvas.height = window.innerHeight;
 
 // --- Oyun durumu ---
+const WARMUP_MS = 4000; // Oyun başında engelsiz ısınma süresi
 let isGameOver      = false;
 let gameStarted     = false;
 let score           = 0;
@@ -61,6 +62,7 @@ let enemies      = [];
 let collectibles = [];
 
 // --- Aktif güçlendirici bayrakları ---
+let warmupUntil = 0; // Isınma bitiş zamanı (ms): bu süre boyunca engel çıkmaz, oyuncu hassasiyete alışır
 let hasShield      = false;
 let isInvincible   = false;
 let scoreMultiplier = 1;
@@ -135,7 +137,7 @@ function spawnCollectible() {
  */
 function applyPowerup(type) {
     if (type === 'basic') {
-        score += (50 * scoreMultiplier);
+        if (Date.now() >= warmupUntil) score += (50 * scoreMultiplier); // ısınmada puan yok
 
     } else if (type === 'lambda') {
         // Yenilmezlik + Hız artışı (4 saniye)
@@ -225,14 +227,17 @@ function updateGame() {
     }
 
     // Zaman tabanlı skor artışı
-    score += Math.floor(1 * scoreMultiplier);
-    document.getElementById('scoreVal').innerText = Math.floor(score / 10);
+    // Isınma turunda puan işlemez (hassasiyete alışma süresi, skor tablosuna yansımaz)
+    if (Date.now() >= warmupUntil) {
+        score += Math.floor(1 * scoreMultiplier);
+        document.getElementById('scoreVal').innerText = Math.floor(score / 10);
 
-    // Her 500 puanda hızlanma (yenilmezlik sırasında hızlanma olmaz)
-    if (score % 500 === 0 && !isInvincible) speedMultiplier += 0.15;
+        // Her 500 puanda hızlanma (yenilmezlik sırasında hızlanma olmaz)
+        if (score % 500 === 0 && !isInvincible) speedMultiplier += 0.15;
+    }
 
-    // Lerp ile yumuşak hareket — 0.35: telefon tarafı zaten filtrelendiği için düşük gecikmeli tepki
-    player.speedX += (targetSpeedX - player.speedX) * 0.35;
+    // Lerp ile yumuşak hareket — 0.25: kontrolün "sinirli" hissettirmemesi için denge (0.35 fazla tepkiliydi)
+    player.speedX += (targetSpeedX - player.speedX) * 0.25;
     player.x      += player.speedX;
     player.x       = Math.max(30, Math.min(canvas.width - 30, player.x));
 
@@ -340,6 +345,15 @@ function updateGame() {
     ctx.fillText('☁️', 0, 0);
     ctx.restore();
 
+    // Isınma ipucu (ilk saniyeler): telefonu eğerek bulutu hareket ettirmeyi öğret
+    if (Date.now() < warmupUntil) {
+        ctx.fillStyle = isDark ? '#FFFFFF' : '#232F3E';
+        ctx.font = 'bold 26px Arial';
+        ctx.fillText('ISINMA: Telefonu eğ, bulutu oynat!', canvas.width / 2, 120);
+        ctx.font = '18px Arial';
+        ctx.fillText('Engeller ' + Math.ceil((warmupUntil - Date.now()) / 1000) + ' sn sonra başlıyor', canvas.width / 2, 150);
+    }
+
     // EC2 aktifken x2 göstergesi
     if (scoreMultiplier > 1) {
         ctx.fillStyle = isDark ? '#00A1C9' : '#FF9900';
@@ -383,6 +397,7 @@ function resetGame() {
     isInvincible    = false;
     scoreMultiplier = 1;
 
+    warmupUntil = 0;
     clearTimeout(lambdaTimer);
     clearTimeout(ec2Timer);
 
@@ -407,7 +422,9 @@ function startGame() {
     if (gameStarted || isGameOver) return;
     gameStarted = true;
     document.getElementById('qrOverlay').style.display = 'none';
-    spawnEnemy();
+    warmupUntil = Date.now() + WARMUP_MS;
+    // Isınma boyunca sadece güçlendiriciler gelir; engeller ısınma bitince başlar
+    setTimeout(spawnEnemy, WARMUP_MS);
     spawnCollectible();
 }
 

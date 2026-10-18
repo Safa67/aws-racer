@@ -21,6 +21,23 @@ if (!ODA_ID) {
     throw new Error('Oda numarası bulunamadı, bağlantı durduruldu.');
 }
 
+// --- Cihaz kodu ve hak sayısı ---
+// Rastgele bir kod bu tarayıcıda saklanır; kişiyi tanımlamaz, sadece "aynı telefon" olduğunu gösterir.
+// Tarayıcı verisi silinirse yeni kod üretilir (bilinçli olarak parmak izi/takip yapılmaz).
+const MAX_ATTEMPTS = 3; // Bir cihazın etkinlikteki toplam oyun hakkı
+const DEVICE_ID = (() => {
+    try {
+        let id = localStorage.getItem('awsracer_device');
+        if (!id) {
+            id = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+            localStorage.setItem('awsracer_device', id);
+        }
+        return id;
+    } catch (e) {
+        return 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+})();
+
 // --- AWS durum değişkenleri ---
 let iotData      = null; // Shadow güncelleme için (bu modülde init edilir; kumanda-ui.js tarafından okunur)
 let dynamoClient = null;
@@ -148,18 +165,40 @@ function sendDataToAWS(tiltValue, playerName) {
     if (mqttReady) {
         phoneMqtt.publish(
             `awsracer/${ODA_ID}/tilt`,
-            JSON.stringify({ tilt: tiltValue, playerName: playerName, sentAt: now }),
+            JSON.stringify({ tilt: tiltValue, playerName: playerName, deviceId: DEVICE_ID, sentAt: now }),
             { qos: 0 }
         );
         return;
     }
 
     const payload = JSON.stringify({
-        state: { desired: { tilt: tiltValue, playerName: playerName, sentAt: now } },
+        state: { desired: { tilt: tiltValue, playerName: playerName, deviceId: DEVICE_ID, sentAt: now } },
     });
     iotData.updateThingShadow({ thingName: ODA_ID, payload: payload }, function (err) {
         if (err) console.error('Shadow güncelleme hatası:', err);
     });
+}
+
+// ─── DynamoDB Yardımcıları ────────────────────────────────────────────────────
+
+/** Tablodaki kayıtları sayfalayarak çeker (Scan tek seferde en fazla 1 MB döner). */
+function scanAll(params, callback, acc) {
+    acc = acc || [];
+    dynamoClient.scan(params, function (err, data) {
+        if (err) return callback(err);
+        acc = acc.concat(data.Items || []);
+        if (data.LastEvaluatedKey) {
+            return scanAll(Object.assign({}, params, { ExclusiveStartKey: data.LastEvaluatedKey }), callback, acc);
+        }
+        callback(null, acc);
+    });
+}
+
+/** HTML'e basılacak metni temizler (oyuncu adı kullanıcıdan gelir). */
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, ch => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
 }
 
 // ─── DynamoDB Leaderboard ─────────────────────────────────────────────────────
@@ -174,13 +213,13 @@ function fetchLeaderboard(isPreview, myName) {
 
     const timestamp = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
-    dynamoClient.scan({ TableName: AWS_CONFIG.dynamoTable }, function (err, data) {
+    scanAll({ TableName: AWS_CONFIG.dynamoTable }, function (err, items) {
         if (err) { console.error('Leaderboard hatası:', err); return; }
 
         // Giriş sırasında benzersiz isim zorunluluğu uygulanıyor (kumanda-ui.js).
         // Bu gruplama sadece beklenmedik çifte kayıtlara karşı güvenlik önlemi olarak tutulur.
         const bestByName = {};
-        data.Items.forEach(item => {
+        items.forEach(item => {
             if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
                 bestByName[item.PlayerName] = item.Score;
             }
@@ -193,7 +232,7 @@ function fetchLeaderboard(isPreview, myName) {
         if (isPreview) {
             // Giriş ekranı: sadece birinci oyuncuyu göster
             document.getElementById('leaderPreview').innerHTML = top10.length > 0
-                ? `🏆 Şu an önde: <b style="color:#FF9900">${top10[0][0]} (${top10[0][1]} puan)</b>`
+                ? `🏆 Şu an önde: <b style="color:#FF9900">${escapeHtml(top10[0][0])} (${top10[0][1]} puan)</b>`
                 : 'Henüz hiç puan yok — ilk sen ol!';
         } else {
             // Oyun içi: tam liste (kendi satırı vurgulanır)
@@ -202,7 +241,7 @@ function fetchLeaderboard(isPreview, myName) {
                 const isMe = name === myName;
                 htmlStr += `<li class="${isMe ? 'me' : ''}">
                     <span class="rank">${idx + 1}.</span>
-                    <span style="flex:1; padding: 0 5px;">${isMe ? '⭐ ' : ''}${name}</span>
+                    <span style="flex:1; padding: 0 5px;">${isMe ? '⭐ ' : ''}${escapeHtml(name)}</span>
                     <span class="player-score">${score}</span>
                 </li>`;
             });
