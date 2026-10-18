@@ -408,15 +408,6 @@ body.dark-theme .tut-hint {
     text-align: left;
 }
 
-#recalBtn {
-    margin-top: 8px;
-    padding: 8px 10px;
-    font-size: 12px;
-    background: transparent;
-    color: #545B64;
-    border: 1px solid #AAB7B8;
-    border-radius: 4px;
-}
 
 #padControls {
     position: fixed;
@@ -448,8 +439,7 @@ body.dark-theme .tut-hint {
     background: #FF9900;
 }
 
-body.dark-theme .tut-pad-opt,
-body.dark-theme #recalBtn {
+body.dark-theme .tut-pad-opt {
     color: #AAB7B8;
 }
 

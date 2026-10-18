@@ -83,7 +83,7 @@ function todayKey() {
 function renderBoard(listId, items, emptyText) {
     // Aynı isimde birden fazla kayıt olabilir (oyuncular 3 hakka kadar oynar): en yüksek skor sayılır.
     const bestByName = {};
-    items.forEach(item => {
+    items.filter(item => !isTesterName(item.PlayerName)).forEach(item => {
         if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
             bestByName[item.PlayerName] = item.Score;
         }

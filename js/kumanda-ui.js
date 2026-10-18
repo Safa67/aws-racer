@@ -41,6 +41,17 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     nameError.style.color = '#FF9900';
     nameError.innerText = '🔍 İsim kontrol ediliyor...';
 
+    // Deneme/geliştirici ismi: hak ve isim kontrolü yok, her cihazdan sınırsız oynanır
+    if (isTesterName(inputName)) {
+        ATTEMPTS_LEFT = Infinity;
+        try { localStorage.setItem('awsracer_name', inputName); } catch (e) {}
+        connectBtn.disabled = false;
+        nameError.style.color = '#00FF00';
+        nameError.innerText = '✅ Deneme hesabı: sınırsız hak — Bağlanılıyor...';
+        setTimeout(() => startPlaying(inputName), 400);
+        return;
+    }
+
     // Bu isim başka bir cihaza mı ait? Bu cihaz kaç kez oynadı? (tek taramada ikisi birden)
     scanAll({
         TableName: AWS_CONFIG.dynamoTable,
@@ -106,7 +117,9 @@ function showGameOver() {
         <div style="text-align:center; padding: 40px 20px;">
             <h1 style="color:#D13212; font-size:40px; margin-bottom:20px;">OYUN BİTTİ! 🚀</h1>
             <p style="font-size:20px; color:#545B64; margin-bottom: 20px;">Oynadığın için teşekkürler!</p>
-            <p style="font-size:16px; color:#545B64; margin-bottom: 20px;">${ATTEMPTS_LEFT > 1
+            <p style="font-size:16px; color:#545B64; margin-bottom: 20px;">${ATTEMPTS_LEFT === Infinity
+                ? 'Deneme hesabı: sınırsız hak — tekrar denemek için QR\'ı yeniden okut.'
+                : ATTEMPTS_LEFT > 1
                 ? 'Kalan hakkın: <b>' + (ATTEMPTS_LEFT - 1) + '/' + MAX_ATTEMPTS + '</b> — tekrar denemek için ekrandaki QR\'ı yeniden okut.'
                 : 'Tüm oyun haklarını kullandın.'}</p>
             <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>3 saniye içinde</b> otomatik kapatılacaktır.</p>
@@ -190,9 +203,6 @@ document.getElementById('tutReadyBtn').addEventListener('click', () => {
 
 // ─── Gyroscope Okuma ──────────────────────────────────────────────────────────
 
-// Kalibrasyon: oyuncunun telefonu rahat tuttuğu açı "merkez" (0°) sayılır.
-const CALIB_SAMPLES = 8;     // ilk ~8 sensör olayının ortalaması (~130 ms)
-const CALIB_MAX     = 30;    // bunun üstündeki ofset kasıtlı eğim sayılır, merkez yapılmaz
 // Hassasiyet: telefondaki eğim bu çarpanla büyütülüp küçültülür (kişiye göre ayar).
 const SENS_LEVELS = { low: 0.7, normal: 1.0, high: 1.3 };
 let sensGain = SENS_LEVELS.normal;
@@ -215,41 +225,34 @@ document.querySelectorAll('.sens-btn').forEach(btn => {
 });
 applySensButtons();
 
-let calibOffset   = 0;
-let calibSum      = 0;
-let calibCount    = 0;
-let rawGammaLast  = 0;
 let lastOutTilt   = 0; // Telefondan en son gönderilen eğim (kalp atışı bunu tekrarlar)
 let padMode       = false;
 
-/** Mevcut tutuş açısını merkez yapar (Sıfırla butonu). */
-function recalibrate() {
-    calibOffset = Math.max(-CALIB_MAX, Math.min(CALIB_MAX, rawGammaLast));
-    smoothedGamma = 0;
+/**
+ * Telefonun sağ kenarının yataydan ne kadar aşağıda olduğunu (°) verir. Sağa eğim pozitif.
+ *
+ * Neden gamma değil: gamma, telefonun öne/arkaya yatıklığına (beta) bağlıdır. Aynı gerçek
+ * eğim, telefon dik tutulunca 2-3 kat büyük gamma verir; ekran biraz arkaya yatırılınca
+ * (beta > 90°) gamma işaret değiştirir ve kumanda ters yöne gider.
+ * Sağ kenarın dünya eksenindeki dikey bileşeni her duruşta doğrudur:
+ *     aşağı eğim = asin( sin(gamma) · cos(beta) )
+ */
+function steeringAngle(beta, gamma) {
+    if (beta === null || beta === undefined) return gamma; // beta yoksa eski davranış
+    const b = beta * Math.PI / 180;
+    const g = gamma * Math.PI / 180;
+    const s = Math.max(-1, Math.min(1, Math.sin(g) * Math.cos(b)));
+    return Math.asin(s) * 180 / Math.PI;
 }
-
-document.getElementById('recalBtn').addEventListener('click', recalibrate);
 
 /**
  * Telefon eğim verisini okur, tilt çubuğunu günceller ve AWS'ye gönderir.
- * İlk birkaç olay kalibrasyon için kullanılır; veri gönderimi ondan sonra başlar.
  */
 function startSensing() {
     window.addEventListener('deviceorientation', (event) => {
         if (gameOverShown) return; // Oyun bitti ekranında arayüz öğeleri yok, gönderim de gerekmiyor
-        const rawGamma = event.gamma; // Sağa/sola eğim açısı (°)
-        if (rawGamma === null) return;
-        rawGammaLast = rawGamma;
-
-        // Başlangıç kalibrasyonu: ilk olayların ortalaması merkez olur
-        if (calibCount < CALIB_SAMPLES) {
-            calibSum += rawGamma;
-            calibCount++;
-            if (calibCount === CALIB_SAMPLES) {
-                calibOffset = Math.max(-CALIB_MAX, Math.min(CALIB_MAX, calibSum / CALIB_SAMPLES));
-            }
-            return;
-        }
+        if (event.gamma === null) return;
+        const rawGamma = steeringAngle(event.beta, event.gamma); // Sağa/sola eğim açısı (°), duruştan bağımsız
 
         // EMA Filtresi: Sensördeki titremeleri ve ani sıçramaları temizler
         // Olay hızından bağımsız EMA: katsayı geçen süreye göre ölçeklenir (60 Hz'de tam SENSOR_SMOOTH)
@@ -257,7 +260,7 @@ function startSensing() {
         const evDt   = lastSensorTime ? Math.max(0.25, Math.min((nowMs - lastSensorTime) / (1000 / 60), 4)) : 1;
         lastSensorTime = nowMs;
         const alpha  = 1 - Math.pow(1 - SENSOR_SMOOTH, evDt);
-        smoothedGamma = ((rawGamma - calibOffset) * alpha) + (smoothedGamma * (1 - alpha));
+        smoothedGamma = (rawGamma * alpha) + (smoothedGamma * (1 - alpha));
 
         // Tilt değerini ekranda göster
         document.getElementById('tiltDisplay').innerText = `Eğim: ${Math.round(smoothedGamma)}°`;
@@ -272,7 +275,7 @@ function startSensing() {
 }
 
 /**
- * Sensör olayı gelmese bile (telefon sabit, izin bekliyor, kalibrasyon sürüyor) monitöre düzenli sinyal yollar.
+ * Sensör olayı gelmese bile (telefon sabit, izin bekliyor) monitöre düzenli sinyal yollar.
  * İlk sinyal oyunu başlatır; bu olmadan hiç sensör olayı gelmezse monitör bekleme ekranında kalırdı.
  */
 function startHeartbeat() {
@@ -303,7 +306,6 @@ function startPadMode() {
     const left  = document.getElementById('padLeft');
     const right = document.getElementById('padRight');
     document.getElementById('padControls').style.display = 'flex';
-    document.getElementById('recalBtn').style.display = 'none';
     document.getElementById('sensRow').style.display  = 'none';
     document.querySelector('.tilt-label').innerText = '🎮 Tuşlarla yönlendir';
 
