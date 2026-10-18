@@ -13,7 +13,7 @@
 let PLAYER_NAME      = '';
 let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
 let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
-const SENSOR_SMOOTH  = 0.25; // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
+const SENSOR_SMOOTH  = 0.5;  // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı). Monitörde ayrıca lerp var; çift yumuşatma gecikme yaratmasın diye 0.5.
 
 // ─── Bağlan Butonu ────────────────────────────────────────────────────────────
 
@@ -63,6 +63,35 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     });
 });
 
+// ─── Oyun Bitti Ekranı ────────────────────────────────────────────────────────
+
+let gameOverCheck = null; // Shadow yoklama zamanlayıcısı (MQTT sinyali gelmezse yedek)
+let gameOverShown = false;
+
+/** Oyun bitti ekranını gösterir. MQTT sinyali ve Shadow yoklaması aynı fonksiyonu çağırır. */
+function showGameOver() {
+    if (gameOverShown) return;
+    gameOverShown = true;
+    clearInterval(gameOverCheck);
+    clearInterval(leaderInterval);
+
+    document.getElementById('gameUI').innerHTML = `
+        <div style="text-align:center; padding: 40px 20px;">
+            <h1 style="color:#D13212; font-size:40px; margin-bottom:20px;">OYUN BİTTİ! 🚀</h1>
+            <p style="font-size:20px; color:#545B64; margin-bottom: 20px;">Oynadığın için teşekkürler!</p>
+            <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>10 saniye içinde</b> otomatik kapatılacaktır.</p>
+        </div>
+    `;
+
+    // 10 saniye sonra sekmeyi kapatmayı dene, olmazsa AWS sayfasına yönlendir.
+    // Bazı mobil tarayıcılar (ör. Safari) QR ile açılan sekmelerde window.close()'a izin verir,
+    // izin vermeyenlerde yönlendirme bir nevi "çıkış" görevi görür.
+    setTimeout(() => {
+        window.close();
+        window.location.href = "https://aws.amazon.com/tr/";
+    }, 10000);
+}
+
 // ─── Oyuna Başla ──────────────────────────────────────────────────────────────
 
 /**
@@ -72,45 +101,38 @@ document.getElementById('connectBtn').addEventListener('click', () => {
 function startPlaying(name) {
     PLAYER_NAME = name;
 
-    // UI geçişi
-    document.getElementById('nameOverlay').style.display = 'none';
-    document.getElementById('gameUI').style.display      = 'block';
-    document.getElementById('pNameVal').innerText        = PLAYER_NAME;
+    // UI geçişi: isim ekranı → öğretici (oyun arayüzü altta hazır bekler)
+    document.getElementById('nameOverlay').style.display     = 'none';
+    document.getElementById('gameUI').style.display          = 'block';
+    document.getElementById('pNameVal').innerText            = PLAYER_NAME;
+    document.getElementById('tutorialOverlay').style.display = 'flex';
 
     // Oyun sırasında leaderboard'u 10 saniyede bir yenile
     leaderInterval = setInterval(() => fetchLeaderboard(false, PLAYER_NAME), 10000);
 
-    // Oyun bitti mi diye AWS Shadow'u kontrol et (her 3 saniyede 1)
-    const gameOverCheck = setInterval(() => {
+    // Oyun bitti sinyali: önce MQTT push (anında), yedek olarak Shadow yoklaması (her 3 sn)
+    onGameOverSignal = showGameOver;
+    gameOverCheck = setInterval(() => {
         if (!iotData) return;
         iotData.getThingShadow({ thingName: ODA_ID }, (err, data) => {
             if (err) return;
             try {
                 const payload = JSON.parse(data.payload.toString());
-                if (payload.state && payload.state.desired && payload.state.desired.gameOver) {
-                    clearInterval(gameOverCheck);
-                    clearInterval(leaderInterval);
-                    
-                    // Ekranı güncelle
-                    document.getElementById('gameUI').innerHTML = `
-                        <div style="text-align:center; padding: 40px 20px;">
-                            <h1 style="color:#D13212; font-size:40px; margin-bottom:20px;">OYUN BİTTİ! 🚀</h1>
-                            <p style="font-size:20px; color:#545B64; margin-bottom: 20px;">Oynadığın için teşekkürler!</p>
-                            <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>10 saniye içinde</b> otomatik kapatılacaktır.</p>
-                        </div>
-                    `;
-                    
-                    // 10 saniye sonra sekmeyi kapatmayı dene, olmazsa AWS sayfasına yönlendir.
-                    // Bazı mobil tarayıcılar (ör. Safari) QR ile açılan sekmelerde window.close()'a izin verir,
-                    // izin vermeyenlerde yönlendirme bir nevi "çıkış" görevi görür.
-                    setTimeout(() => {
-                        window.close();
-                        window.location.href = "https://aws.amazon.com/tr/";
-                    }, 10000);
-                }
+                if (payload.state && payload.state.desired && payload.state.desired.gameOver) showGameOver();
             } catch(e) {}
         });
     }, 3000);
+
+}
+
+// ─── Öğretici → Sensör ────────────────────────────────────────────────────────
+
+/**
+ * "Hazırım" butonuna basılınca öğreticiyi kapatır ve sensörü başlatır.
+ * iOS sensör izni kullanıcı dokunuşu içinde istenmek zorunda; bu yüzden izin istemi buraya bağlı.
+ */
+document.getElementById('tutReadyBtn').addEventListener('click', () => {
+    document.getElementById('tutorialOverlay').style.display = 'none';
 
     // iOS: Sensör izni gerekiyor
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -125,7 +147,7 @@ function startPlaying(name) {
         // Android / web: izin gerekmez
         startSensing();
     }
-}
+});
 
 // ─── Gyroscope Okuma ──────────────────────────────────────────────────────────
 

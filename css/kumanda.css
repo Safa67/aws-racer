@@ -290,3 +290,106 @@ body.dark-theme .leaderboard li {
 body.dark-theme .player-score {
     color: #00A1C9;
 }
+
+/* ============================================
+   ÖĞRETİCİ EKRANI
+   ============================================ */
+
+#tutorialOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #F2F3F3;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+#tutorialOverlay h2 {
+    color: #FF9900;
+    font-size: 26px;
+    margin: 0 0 18px 0;
+}
+
+.tut-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 340px;
+    background: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    text-align: left;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.tut-icon {
+    flex: 0 0 48px;
+    font-size: 34px;
+    text-align: center;
+}
+
+.tut-icon img {
+    width: 44px;
+    height: auto;
+    vertical-align: middle;
+}
+
+.tut-text {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #545B64;
+}
+
+.tut-text b {
+    color: #16191F;
+    font-size: 15px;
+}
+
+#tutReadyBtn {
+    width: 100%;
+    max-width: 340px;
+    margin-top: 8px;
+    padding: 16px;
+    font-size: 18px;
+    font-weight: bold;
+    background: #FF9900;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.tut-hint {
+    font-size: 12px;
+    color: #545B64;
+    margin-top: 10px;
+}
+
+body.dark-theme #tutorialOverlay {
+    background: #0F1B2A;
+}
+
+body.dark-theme .tut-step {
+    background: #232F3E;
+}
+
+body.dark-theme .tut-text {
+    color: #AAB7B8;
+}
+
+body.dark-theme .tut-text b {
+    color: #FFFFFF;
+}
+
+body.dark-theme .tut-hint {
+    color: #AAB7B8;
+}

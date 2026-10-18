@@ -44,6 +44,23 @@
     </div>
 
     <!-- ── OYUN EKRANI (oynarken gösterilir) ───────────────────── -->
+    <div id="tutorialOverlay" style="display:none;">
+        <h2>Nasıl Oynanır?</h2>
+        <div class="tut-step">
+            <div class="tut-icon">📱</div>
+            <div class="tut-text"><b>Telefonu sağa-sola eğ</b><br>Ekrandaki bulut eğdiğin yöne gider. Telefonu dik tut, yatırma.</div>
+        </div>
+        <div class="tut-step">
+            <div class="tut-icon"><img src="images/Amazon_Web_Services_Logo.svg.png" alt="AWS"></div>
+            <div class="tut-text"><b>AWS logolarını topla</b><br>Her logo puan kazandırır. ⚡ Lambda, 🪣 S3 ve 🖥️ EC2 güçlendiricileri ekstra güç verir.</div>
+        </div>
+        <div class="tut-step">
+            <div class="tut-icon">💾</div>
+            <div class="tut-text"><b>Eski donanımlardan kaç</b><br>Sunucu rafı, disket, mavi ekran ve kablo yumağına çarparsan oyun biter.</div>
+        </div>
+        <button id="tutReadyBtn">Hazırım, Başla 🚀</button>
+        <p class="tut-hint">Butona basınca oyun, telefonu eğdiğin an başlar.</p>
+    </div>
     <div id="gameUI" style="display:none;">
 
         <!-- Üst Bar: Oyuncu adı + Bağlantı durumu -->
@@ -88,7 +105,9 @@
         2. kumanda-aws.js : AWS bağlantısı, Shadow gönderimi, leaderboard
         3. kumanda-ui.js  : İsim doğrulama, UI geçişi, sensör okuma
     -->
+    <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
     <script src="js/config.js"></script>
+    <script src="js/iot-sign.js"></script>
     <script src="js/kumanda-aws.js"></script>
     <script src="js/kumanda-ui.js"></script>
 

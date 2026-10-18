@@ -3,7 +3,7 @@
  *
  * Şunları yönetir:
  *   1. Cognito ile AWS kimlik doğrulama
- *   2. IoT Device Shadow'a tilt verisi gönderme
+ *   2. Tilt verisini AWS IoT'ye gönderme (doğrudan MQTT; yedek: Device Shadow REST)
  *   3. DynamoDB'den leaderboard çekme
  *
  * Bağımlılıklar: config.js, aws-sdk
@@ -25,8 +25,16 @@ if (!ODA_ID) {
 let iotData      = null; // Shadow güncelleme için (bu modülde init edilir; kumanda-ui.js tarafından okunur)
 let dynamoClient = null;
 
-// Son gönderme zamanı (40ms tavanı için rate limiting)
-let lastSendTime = 0;
+// Gönderme sıklığı: en az 33ms aralık (~30Hz). Aynı değer tekrar gönderilmez (heartbeat hariç).
+const SEND_INTERVAL_MS  = 33;
+const HEARTBEAT_MS      = 250;
+let lastSendTime  = 0;
+let lastSentTilt  = null;
+let pendingSend   = null; // Throttle'a takılan son değeri bırakmamak için (trailing send)
+
+// Doğrudan MQTT bağlantısı (Shadow REST yoluna göre daha düşük gecikme)
+let phoneMqtt = null;
+let onGameOverSignal = null; // kumanda-ui.js atar: monitörden gelen "oyun bitti" sinyali
 
 // ─── AWS Kimlik Doğrulama ─────────────────────────────────────────────────────
 
@@ -52,33 +60,103 @@ AWS.config.credentials.get(function (err) {
 
     // Giriş ekranında da leaderboard önizlemesini göster
     fetchLeaderboard(true);
+
+    connectPhoneMqtt();
 });
+
+// ─── Doğrudan MQTT (düşük gecikme) ────────────────────────────────────────────
+
+/**
+ * Telefonu AWS IoT'ye MQTT WebSocket ile bağlar. Eğim verisi Shadow REST çağrısı yerine
+ * `awsracer/<oda>/tilt` topic'ine publish edilir. Bağlantı yoksa REST yolu yedek olarak kalır.
+ * Kopma olursa her denemede taze imzalı URL ile yeniden bağlanır.
+ */
+async function connectPhoneMqtt() {
+    if (typeof mqtt === 'undefined') return;
+
+    let url;
+    try {
+        url = await createMqttWebSocketUrl();
+    } catch (e) {
+        console.error('Telefon MQTT URL hatası:', e);
+        setTimeout(connectPhoneMqtt, 3000);
+        return;
+    }
+
+    const client = mqtt.connect(url, {
+        clientId:        'phone-' + Math.random().toString(36).slice(2, 10),
+        protocol:        'wss',
+        keepalive:       30,
+        reconnectPeriod: 0, // eski imzalı URL süresi dolar; 'close'ta taze imzayla kendimiz bağlanırız
+        connectTimeout:  8000,
+    });
+    phoneMqtt = client;
+
+    client.on('connect', () => {
+        client.subscribe(`awsracer/${ODA_ID}/state`, { qos: 0 });
+    });
+
+    client.on('message', (topic, message) => {
+        try {
+            const data = JSON.parse(message.toString());
+            if (data.gameOver && onGameOverSignal) onGameOverSignal();
+        } catch (e) {}
+    });
+
+    client.on('error', (err) => console.error('Telefon MQTT hatası:', err));
+
+    client.on('close', () => {
+        if (phoneMqtt !== client) return;
+        client.end(true);
+        setTimeout(connectPhoneMqtt, 2000);
+    });
+}
 
 // ─── IoT Shadow Veri Gönderme ─────────────────────────────────────────────────
 
 /**
- * Eğim verisini ve oyuncu adını AWS IoT Device Shadow'a gönderir.
- * Saniyede en fazla ~25 kez gönderilir (40ms tavanı).
+ * Eğim verisini ve oyuncu adını gönderir.
+ * Öncelik: doğrudan MQTT publish (düşük gecikme). MQTT hazır değilse Shadow REST yedeği.
+ * En fazla ~30 kez/sn gönderilir; throttle'a takılan son değer kaybolmaz (trailing send).
  *
  * @param {number} tiltValue  - Telefon eğim açısı (derece)
  * @param {string} playerName - Oyuncu adı
  */
 function sendDataToAWS(tiltValue, playerName) {
-    if (!iotData) return;
-
-    const now = Date.now();
-    if (now - lastSendTime < 40) return; // Rate limiting (Saniyede ~25 istek, akıcı kontrol için)
-    lastSendTime = now;
+    const mqttReady = phoneMqtt && phoneMqtt.connected;
+    if (!mqttReady && !iotData) return;
 
     // ±2 derece denge payı: çok hafif titremeleri ve drift'i engeller
     if (tiltValue > -2 && tiltValue < 2) tiltValue = 0;
 
-    const payload = JSON.stringify({
-        // sentAt: Telefonun veriyi yazdığı an (ms). Monitör bunu okuyarak
-        // uçtan uca gecikmeyi (telefon → AWS → monitör) hesaplar.
-        state: { desired: { tilt: tiltValue, playerName: playerName, sentAt: Date.now() } },
-    });
+    const now  = Date.now();
+    const wait = SEND_INTERVAL_MS - (now - lastSendTime);
+    if (wait > 0) {
+        // Çok yakın zamanda gönderildi: en güncel değeri aralık dolunca gönder
+        clearTimeout(pendingSend);
+        pendingSend = setTimeout(() => sendDataToAWS(tiltValue, playerName), wait);
+        return;
+    }
 
+    // Değer değişmediyse sadece heartbeat aralığında tekrar gönder (maliyet + bant genişliği)
+    if (tiltValue === lastSentTilt && now - lastSendTime < HEARTBEAT_MS) return;
+
+    lastSendTime = now;
+    lastSentTilt = tiltValue;
+
+    // sentAt: Telefonun veriyi yazdığı an (ms) — uçtan uca gecikme ölçümü için.
+    if (mqttReady) {
+        phoneMqtt.publish(
+            `awsracer/${ODA_ID}/tilt`,
+            JSON.stringify({ tilt: tiltValue, playerName: playerName, sentAt: now }),
+            { qos: 0 }
+        );
+        return;
+    }
+
+    const payload = JSON.stringify({
+        state: { desired: { tilt: tiltValue, playerName: playerName, sentAt: now } },
+    });
     iotData.updateThingShadow({ thingName: ODA_ID, payload: payload }, function (err) {
         if (err) console.error('Shadow güncelleme hatası:', err);
     });
