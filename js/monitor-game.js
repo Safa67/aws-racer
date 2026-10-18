@@ -96,6 +96,16 @@ const player = {
 };
 let targetSpeedX = 0; // Lerp (yumuşak hareket) için hedef hız
 
+/**
+ * Pencere boyutu değişince (F11 tam ekran, pencere yeniden boyutlandırma) canvas yüksekliğini ve
+ * oyuncunun alt kenara göre konumunu günceller. Önceden yükseklik yalnızca sayfa açılırken ayarlanıyordu.
+ */
+function resizeCanvas() {
+    canvas.height = window.innerHeight;
+    player.y      = canvas.height - 120;
+}
+window.addEventListener('resize', resizeCanvas);
+
 // --- Engel görselleri ---
 const bsodImg   = new Image(); bsodImg.src   = 'images/mavi-ekran-hatasi-bytekno-com-tr.webp';
 const floppyImg = new Image(); floppyImg.src = 'images/realistic-illustration-floppy-disk-diskette-600w-2090370403.webp';
