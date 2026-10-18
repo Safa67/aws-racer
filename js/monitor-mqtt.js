@@ -21,6 +21,10 @@
 // Oyuncu adı — hem bu modül (MQTT mesajında güncellenir)
 // hem de monitor-aws.js (DynamoDB kaydında kullanılır) tarafından okunur.
 let activePlayerName = 'Anonim';
+// Oda kilidi: ilk kontrol mesajını gönderen telefon odanın sahibi olur. Başka telefonların mesajları
+// yok sayılır ve onlara "oda dolu" bilgisi gönderilir (QR'ı aynı anda okutan iki kişi birbirini bozmasın).
+let lockedDeviceId   = null;
+let lastBusyNotify   = {};   // deviceId → son bildirim zamanı (ms), mesaj yağmurunu önler
 let activeDeviceId   = null; // Telefonun rastgele cihaz kodu (3 hak kuralı için skorla birlikte saklanır)
 
 // ─── MQTT Bağlantı Yöneticisi ─────────────────────────────────────────────────
@@ -118,8 +122,9 @@ function subscribeToRoom(odaId) {
 function broadcastGameOver() {
     if (!mqttClient || !mqttClient.connected) return;
     // Telefona anında it (telefon 3 sn'lik shadow yoklamasını beklemez)
-    mqttClient.publish(`awsracer/${ODA_ID}/state`, JSON.stringify({ gameOver: true }), { qos: 0, retain: false });
-    const payload = JSON.stringify({ state: { desired: { gameOver: true } } });
+    // owner: oyun bitti ekranı yalnızca odanın sahibine gösterilir
+    mqttClient.publish(`awsracer/${ODA_ID}/state`, JSON.stringify({ gameOver: true, owner: lockedDeviceId }), { qos: 0, retain: false });
+    const payload = JSON.stringify({ state: { desired: { gameOver: true, owner: lockedDeviceId } } });
     mqttClient.publish(`$aws/things/${ODA_ID}/shadow/update`, payload, { qos: 0 }, (err) => {
         if (err) console.error('GameOver sinyali gönderilemedi:', err);
         else console.log('GameOver sinyali gönderildi.');
@@ -135,6 +140,16 @@ function broadcastGameOver() {
  * @param {string} topic   - Mesajın geldiği topic (bilgi amaçlı)
  * @param {Buffer} message - Ham MQTT mesajı (JSON içerir)
  */
+/** Odanın sahibi olmayan bir telefona "oda dolu" bilgisi yollar (cihaz başına en fazla 2 sn'de bir). */
+function _notifyBusy(deviceId) {
+    const now = Date.now();
+    if (now - (lastBusyNotify[deviceId] || 0) < 2000) return;
+    lastBusyNotify[deviceId] = now;
+    if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`awsracer/${ODA_ID}/state`, JSON.stringify({ busy: true, deviceId: deviceId }), { qos: 0 });
+    }
+}
+
 function _handleMqttMessage(topic, message) {
     try {
         const payload = JSON.parse(message.toString());
@@ -142,7 +157,21 @@ function _handleMqttMessage(topic, message) {
         const desired = topic.startsWith('awsracer/') ? payload : (payload.state && payload.state.desired);
         if (!desired) return;
 
+        // ── Tek kontrolcü kilidi ──────────────────────────────────────────
+        const senderId = desired.deviceId ? String(desired.deviceId).slice(0, 64) : 'bilinmiyor';
 
+        if (desired.join) {
+            // Telefon odaya katıldı: oda zaten başka birine aitse hemen haber ver
+            if (lockedDeviceId !== null && lockedDeviceId !== senderId) _notifyBusy(senderId);
+            return;
+        }
+
+        if (desired.tilt !== undefined) {
+            if (lockedDeviceId === null) lockedDeviceId = senderId;   // ilk kontrol mesajı odayı kilitler
+            if (lockedDeviceId !== senderId) { _notifyBusy(senderId); return; }
+        } else if (lockedDeviceId !== null && lockedDeviceId !== senderId) {
+            return; // sahibi olmayan telefonun diğer mesajları (ör. ad) da yok sayılır
+        }
 
         // ── Oyuncu Adı ────────────────────────────────────────────────────
         if (desired.playerName && desired.playerName !== activePlayerName) {

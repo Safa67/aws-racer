@@ -101,6 +101,23 @@ function renderBoard(listId, items, emptyText) {
     document.getElementById(listId).innerHTML = htmlStr || `<li>${emptyText}</li>`;
 }
 
+// Bugünün oyuncu başına en iyi skorları ({name, score}); canlı sıra hesabı için önbellek.
+// Ek tarama yapılmaz: tablo zaten her oyun sonunda ve açılışta taranıyor.
+let dailyBests = [];
+
+/**
+ * Oyun sırasında anlık skorun günün tablosundaki yerini verir.
+ * Oyuncunun kendi önceki kayıtları dışarıda bırakılır (oyun bitince yerine yenisi geçer).
+ * @returns {{rank:number, total:number}}
+ */
+function liveRankFor(screenScore) {
+    const others = dailyBests.filter(b => b.name !== activePlayerName);
+    return {
+        rank:  1 + others.filter(b => b.score > screenScore).length,
+        total: others.length + 1,
+    };
+}
+
 /** Tüm zamanlar ve günün skor tablolarını tek taramayla günceller. */
 function fetchLeaderboard() {
     if (!dynamoClient) return;
@@ -116,7 +133,15 @@ function fetchLeaderboard() {
 
         // Günün tablosu: sadece bugün oynanan kayıtlar (eski kayıtlarda Day alanı yok, sayılmaz)
         const today = todayKey();
-        renderBoard('dailyList', items.filter(item => item.Day === today), 'Bugün henüz skor yok!');
+        const todays = items.filter(item => item.Day === today);
+        renderBoard('dailyList', todays, 'Bugün henüz skor yok!');
+
+        // Canlı sıra için bugünün en iyi skorları (deneme hesapları sayılmaz)
+        const best = {};
+        todays.filter(item => !isTesterName(item.PlayerName)).forEach(item => {
+            if (!(item.PlayerName in best) || item.Score > best[item.PlayerName]) best[item.PlayerName] = item.Score;
+        });
+        dailyBests = Object.keys(best).map(name => ({ name: name, score: best[name] }));
     });
 }
 
@@ -158,6 +183,8 @@ function onGameOver(finalScore) {
  * Yeni oda ID'si oluşturur, QR'ı ve MQTT aboneliğini günceller.
  */
 function onGameReset() {
+    lockedDeviceId = null;   // yeni oda, kilitsiz başlar
+    lastBusyNotify = {};
     ODA_ID = 'awsracer-' + Math.floor(Math.random() * 1000000);
     renderQR();
     subscribeToRoom(ODA_ID); // monitor-mqtt.js — yeni odanın topic'ine geç

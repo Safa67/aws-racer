@@ -106,6 +106,29 @@ document.getElementById('connectBtn').addEventListener('click', () => {
 let gameOverCheck = null; // Shadow yoklama zamanlayıcısı (MQTT sinyali gelmezse yedek)
 let gameOverShown = false;
 
+/** Oda başka bir telefona ait: kontrolü bırak ve bilgi ekranı göster. */
+function showBusy() {
+    if (gameOverShown) return;
+    gameOverShown = true;      // sensör, tuş ve kalp atışı zamanlayıcıları bu bayrakla durur
+    controlRejected = true;    // gönderimi keser
+    clearInterval(gameOverCheck);
+    clearInterval(leaderInterval);
+
+    ['nameOverlay', 'tutorialOverlay'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+    const ui = document.getElementById('gameUI');
+    ui.style.display = 'block';
+    ui.innerHTML = `
+        <div style="text-align:center; padding: 40px 20px;">
+            <h1 style="color:#FF9900; font-size:32px; margin-bottom:20px;">Bu oyunda başka bir oyuncu var</h1>
+            <p style="font-size:18px; color:#545B64; margin-bottom: 20px;">Bu QR koduyla şu an başka bir telefon oynuyor.</p>
+            <p style="font-size:16px; color:#545B64;">Oyun bitince monitörde yeni bir QR kod çıkacak,<br><b>onu okutarak</b> sıranı al.</p>
+        </div>
+    `;
+}
+
+// İşleyiciyi sayfa yüklenince bağla: oda doluysa isim ekranındaki telefon da hemen haber alır
+onRoomBusy = showBusy;
+
 /** Oyun bitti ekranını gösterir. MQTT sinyali ve Shadow yoklaması aynı fonksiyonu çağırır. */
 function showGameOver() {
     if (gameOverShown) return;
@@ -150,10 +173,10 @@ function startPlaying(name) {
     document.getElementById('pNameVal').innerText            = PLAYER_NAME;
     document.getElementById('tutorialOverlay').style.display = 'flex';
 
-    // Oyun sırasında leaderboard'u 10 saniyede bir yenile
-    leaderInterval = setInterval(() => fetchLeaderboard(false, PLAYER_NAME), 10000);
+    // Skor listesi oyun başında bir kez çekilir (her 10 sn'de tüm tabloyu taramak gereksiz DynamoDB okuması)
+    fetchLeaderboard(false, PLAYER_NAME);
 
-    // Oyun bitti sinyali: önce MQTT push (anında), yedek olarak Shadow yoklaması (her 3 sn)
+    // Oyun bitti sinyali: önce MQTT push (anında), yedek olarak Shadow yoklaması (her 10 sn; MQTT sinyali zaten anında gelir)
     onGameOverSignal = showGameOver;
     gameOverCheck = setInterval(() => {
         if (!iotData) return;
@@ -161,10 +184,11 @@ function startPlaying(name) {
             if (err) return;
             try {
                 const payload = JSON.parse(data.payload.toString());
-                if (payload.state && payload.state.desired && payload.state.desired.gameOver) showGameOver();
+                const d = payload.state && payload.state.desired;
+                if (d && d.gameOver && (!d.owner || d.owner === DEVICE_ID)) showGameOver();
             } catch(e) {}
         });
-    }, 3000);
+    }, 10000);
 
 }
 

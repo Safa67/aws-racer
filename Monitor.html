@@ -40,7 +40,8 @@
     <!-- Sol Üst: Skor ve Oyuncu -->
     <div id="ui">
         SKOR: <span id="scoreVal">0</span><br>
-        <span class="ui-label-player">OYUNCU: <span id="playerVal">Anonim</span></span>
+        <span class="ui-label-player">OYUNCU: <span id="playerVal">Anonim</span></span><br>
+        <span class="ui-label-player">GÜNÜN SIRASI: <span id="rankVal">-</span></span>
     </div>
 
     <!-- Sağ Üst: AWS Bağlantı Durumu -->
@@ -82,6 +83,7 @@
         <button type="button" data-scale="1">1x</button>
         <button type="button" data-scale="1.5">1.5x (oyun)</button>
         <button type="button" data-scale="2.4">2.4x (144 Hz)</button>
+        <button type="button" id="soundBtn">🔊 Ses (tıkla)</button>
     </div>
 
     <!-- Oyun Sonu Ekranı -->
@@ -112,6 +114,7 @@
         6. monitor-aws.js  : Cognito auth → startMqtt() çağırır + DynamoDB
     -->
     <script src="js/config.js"></script>
+    <script src="js/monitor-fx.js"></script>
     <script src="js/monitor-game.js"></script>
     <script src="js/monitor-qr.js"></script>
     <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>

@@ -50,7 +50,9 @@ let pendingSend   = null; // Throttle'a takılan son değeri bırakmamak için (
 
 // Doğrudan MQTT bağlantısı (Shadow REST yoluna göre daha düşük gecikme)
 let phoneMqtt = null;
-let onGameOverSignal = null; // kumanda-ui.js atar: monitörden gelen "oyun bitti" sinyali
+let controlRejected = false; // Oda başka bir telefona aitse true: bu telefon artık veri göndermez
+let onGameOverSignal = null;
+let onRoomBusy = null;       // kumanda-ui.js atar: oda başka bir telefona ait // kumanda-ui.js atar: monitörden gelen "oyun bitti" sinyali
 
 // ─── AWS Kimlik Doğrulama ─────────────────────────────────────────────────────
 
@@ -110,12 +112,18 @@ async function connectPhoneMqtt() {
 
     client.on('connect', () => {
         client.subscribe(`awsracer/${ODA_ID}/state`, { qos: 0 });
+        // Odaya katıldığımızı bildir: oda doluysa monitör hemen "oda dolu" cevabı verir
+        client.publish(`awsracer/${ODA_ID}/tilt`, JSON.stringify({ join: true, deviceId: DEVICE_ID }), { qos: 0 });
     });
 
     client.on('message', (topic, message) => {
         try {
             const data = JSON.parse(message.toString());
-            if (data.gameOver && onGameOverSignal) onGameOverSignal();
+            if (data.busy && data.deviceId === DEVICE_ID) {
+                if (onRoomBusy) onRoomBusy();
+            } else if (data.gameOver && (!data.owner || data.owner === DEVICE_ID) && onGameOverSignal) {
+                onGameOverSignal(); // oyun bitti ekranı yalnızca odanın sahibine
+            }
         } catch (e) {}
     });
 
@@ -139,6 +147,7 @@ async function connectPhoneMqtt() {
  * @param {string} playerName - Oyuncu adı
  */
 function sendDataToAWS(tiltValue, playerName) {
+    if (controlRejected) return;
     const mqttReady = phoneMqtt && phoneMqtt.connected;
     if (!mqttReady && !iotData) return;
 
