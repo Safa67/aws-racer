@@ -283,3 +283,18 @@ body.dark-theme #speedBox button:not(.active) {
     color: #FFFFFF;
     border-color: #545B64;
 }
+
+/* --- Skor rakamı animasyonu (puan alınca büyüyüp küçülür) --- */
+#scoreVal {
+    display: inline-block;
+}
+
+#scoreVal.pop {
+    animation: scorePop 0.28s ease-out;
+}
+
+@keyframes scorePop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}

@@ -170,6 +170,48 @@ const sfx = (() => {
 
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock));
 
+    // ── Arka plan müziği: WebAudio ile üretilen arpej + bas, hız arttıkça tempo artar ──
+    // Dosya yok, indirme yok, AWS maliyeti yok. Kısa bir zamanlayıcı notaları ileriye dönük planlar.
+    let musicOn      = true;
+    let musicRunning = false;
+    let musicTimer   = null;
+    let musicBpm     = 100;
+    let musicStep    = 0;
+    let nextNoteTime = 0;
+    let musicNotes   = 0;   // çalınan toplam nota (test için)
+    const ARP_FREQS  = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25, 783.99]; // La minör pentatonik
+    const ARP_PATTERN = [0, 2, 4, 5, 4, 2, 4, 7, 5, 4, 2, 0, 2, 4, 5, 7];                        // 16 adım
+    const CHORD_RATIO = [1, 0.8909, 0.7937, 0.8909];                                              // Am - Sol - Fa - Sol
+
+    function scheduleMusic() {
+        if (!musicOn || !running()) return;
+        if (nextNoteTime < actx.currentTime) nextNoteTime = actx.currentTime + 0.05; // kilit açılınca birikmiş nota çalma
+        const stepSec = 60 / musicBpm / 4;
+        while (nextNoteTime < actx.currentTime + 0.25) {
+            const idx   = musicStep % 16;
+            const ratio = CHORD_RATIO[Math.floor(musicStep / 16) % 4];
+            const delay = nextNoteTime - actx.currentTime;
+            tone(ARP_FREQS[ARP_PATTERN[idx]] * ratio, stepSec * 1.5, 'triangle', 0.075, null, delay);
+            if (idx === 0 || idx === 8) tone(110 * ratio, stepSec * 4, 'sine', 0.16, null, delay);
+            musicStep++;
+            musicNotes++;
+            nextNoteTime += stepSec;
+        }
+    }
+
+    function updateMusicButton() {
+        const btn = document.getElementById('musicBtn');
+        if (!btn) return;
+        btn.textContent = musicOn ? '🎵 Müzik açık' : '🎵 Müzik kapalı';
+        btn.classList.toggle('active', musicOn);
+    }
+
+    window.addEventListener('load', () => {
+        updateMusicButton();
+        const btn = document.getElementById('musicBtn');
+        if (btn) btn.addEventListener('click', () => { musicOn = !musicOn; btn.blur(); unlock(); updateMusicButton(); });
+    });
+
     document.addEventListener('DOMContentLoaded', updateButton);
     window.addEventListener('load', () => {
         updateButton();
@@ -194,7 +236,37 @@ const sfx = (() => {
         power()      { arpeggio([523, 659, 784, 1047], 0.05, 'triangle', 0.45); },
         shield()     { noise(0.28, 0.6, 350, 'lowpass'); tone(130, 0.25, 'sine', 0.6, 55); },
         nearMiss()   { noise(0.2, 0.35, 1600, 'bandpass'); tone(900, 0.1, 'sine', 0.18, 1500); },
-        streakBreak(){ tone(330, 0.3, 'sawtooth', 0.22, 110); },
+        // Seri bozulması: alçalan çift ton + vuruş (daha belirgin)
+        streakBreak(){ tone(440, 0.4, 'sawtooth', 0.35, 110); tone(220, 0.5, 'square', 0.2, 55, 0.05); noise(0.18, 0.4, 500, 'lowpass'); },
+        // Lambda: yükselen hışırtı ("whoosh") + parlak ton
+        lambda()     { noise(0.45, 0.5, 700, 'bandpass'); tone(300, 0.45, 'sawtooth', 0.22, 1400); arpeggio([784, 1175], 0.07, 'triangle', 0.3); },
+        // S3 kalkanı: metalik "çın"
+        s3()         { tone(1568, 0.3, 'triangle', 0.35); tone(2093, 0.22, 'triangle', 0.22, null, 0.04); noise(0.08, 0.3, 4000, 'highpass'); },
+        // EC2: dijital çift bip
+        ec2()        { tone(880, 0.09, 'square', 0.22); tone(1320, 0.12, 'square', 0.22, null, 0.1); },
+        // Mavi ekran hata sesi
+        bsod()       { tone(784, 0.14, 'square', 0.28); tone(523, 0.32, 'square', 0.28, null, 0.17); tone(130, 0.5, 'sawtooth', 0.18, 90, 0.17); },
+        // Geri sayım
+        tick()       { tone(660, 0.1, 'square', 0.25); },
+        go()         { tone(1047, 0.3, 'square', 0.3); arpeggio([523, 784, 1047], 0.06, 'triangle', 0.3); },
+
+        // Arka plan müziği kontrolü
+        musicStart() {
+            if (musicRunning) return;
+            musicRunning = true;
+            musicStep    = 0;
+            nextNoteTime = 0;
+            musicTimer   = setInterval(scheduleMusic, 80);
+        },
+        musicStop() {
+            musicRunning = false;
+            clearInterval(musicTimer);
+            musicTimer = null;
+        },
+        musicSetTempo(bpm) { musicBpm = Math.max(80, Math.min(170, bpm)); },
+        musicActive()      { return musicRunning; },
+        musicNotesPlayed() { return musicNotes; },
+        musicIsOn()        { return musicOn; },
         tier()       { arpeggio([660, 880, 1100], 0.06, 'triangle', 0.4); },
         milestone()  { arpeggio([523, 659, 784, 1047, 1319], 0.09, 'triangle', 0.5); },
         rankUp()     { arpeggio([784, 1047], 0.08, 'sine', 0.4); },

@@ -86,6 +86,10 @@ let nextWaveAt     = WAVE_FIRST_AT;
 let nextWaveKind   = 'bsod';
 let logoRainDone   = false;
 let spawnPaused    = false;
+let crash          = null;   // Çarpma sahnesi: oyun bitince canvas'ta oynar (çarpma efekti + mavi ekran)
+let lastCountN     = null;   // Geri sayımda son gösterilen rakam (ses için)
+let goPlayed       = false;
+const CRASH_MS     = 1900;   // Çarpma sahnesinden sonra "Oyun bitti" kartının çıkma süresi
 
 // --- Oyuncu ---
 const player = {
@@ -165,8 +169,8 @@ function nearRatio() {
 // ─── Spawn Fonksiyonları ──────────────────────────────────────────────────────
 
 /** Bir engel nesnesi ekler (baseSpeed: 60 fps'te kare başına piksel, hız çarpanı hariç). */
-function addEnemy(x, obsData, baseSpeed) {
-    enemies.push({ x: x, y: -100, size: 50, baseSpeed: baseSpeed, obsData: obsData, passed: false });
+function addEnemy(x, obsData, baseSpeed, isWave) {
+    enemies.push({ x: x, y: -100, size: 50, baseSpeed: baseSpeed, obsData: obsData, passed: false, wave: !!isWave });
 }
 
 /**
@@ -273,6 +277,15 @@ function addBanner(text, sub, color, ms) {
     if (banners.length > 3) banners.shift();
 }
 
+/** Ekrandaki skor rakamını kısa süre büyütüp küçültür (puan alınca). */
+function scorePop() {
+    const el = document.getElementById('scoreVal');
+    if (!el) return;
+    el.classList.remove('pop');
+    void el.offsetWidth;          // animasyonu yeniden başlat
+    el.classList.add('pop');
+}
+
 function streakAdd() {
     const before = streakMult();
     streak++;
@@ -305,6 +318,7 @@ function checkMilestone(screenPts) {
     let reached = nextMilestoneAt;
     while (milestoneAfter(reached) <= screenPts) reached = milestoneAfter(reached);
     celebrateMilestone(reached);
+    scorePop();
     nextMilestoneAt = milestoneAfter(reached);
 }
 
@@ -434,7 +448,7 @@ function spawnRainTick(k) {
         }
         if (picked.every(p => Math.abs(p - x) >= 70)) picked.push(x);
     }
-    picked.forEach(x => addEnemy(x, BSOD_TYPE, RAIN_SPEED));
+    picked.forEach(x => addEnemy(x, BSOD_TYPE, RAIN_SPEED, true));
 }
 
 /** Boşluğu 3 kutu genişliğinde bırakan bir sunucu duvarı. gapCenter: boşluğun merkezi (px). */
@@ -443,7 +457,7 @@ function spawnWall(gapCenter) {
         if (Math.abs(j) <= 1) continue;               // 3 kutu boşluk
         const x = gapCenter + j * WALL_TILE;
         if (x < -WALL_TILE / 2 || x > canvas.width + WALL_TILE / 2) continue;
-        addEnemy(x, SERVER_TYPE, WALL_SPEED);
+        addEnemy(x, SERVER_TYPE, WALL_SPEED, true);
     }
 }
 
@@ -490,7 +504,9 @@ function advanceWave(realMs) {
         } else if (wave.kind === 'wall') {
             if (wave.spawnClock >= WALL_INTERVAL && wave.walls < WALL_COUNT) {
                 wave.spawnClock -= WALL_INTERVAL;
-                spawnWall(nextWallGap());
+                const gap = nextWallGap();
+                spawnWall(gap);
+                wave.marker = { x: gap, until: performance.now() + 1700 };   // boşluk işareti (ekranda ▼▼▼)
                 wave.walls++;
             }
             if (wave.walls >= WALL_COUNT) { wave.phase = 'tail'; wave.t = 0; }
@@ -520,6 +536,68 @@ function runWaves(realMs) {
     if (wave) { advanceWave(realMs); return; }
     if (!logoRainDone && playSec >= LOGO_RAIN_AT) { startWave('logo'); return; }
     if (playSec >= nextWaveAt) startWave(nextWaveKind);
+}
+
+// ─── Arka Plan: paralaks, hız çizgileri, tehlike vinyeti ──────────────────────
+// Üç katman: yavaş büyük bulutlar, orta hızda küçük "veri paketleri", hızlı çizgiler (yalnız hız artınca).
+// Hepsi ekranın içinde döngüsel akar, hız çarpanıyla hızlanır. Kenarlarda hız arttıkça turuncudan kırmızıya
+// dönen bir vinyet ve dalga olaylarında yavaş (saniyede ~1 kez) nabız atan kırmızı kenar vardır.
+const bgItems = [];
+
+function bgInit() {
+    bgItems.length = 0;
+    const W = canvas.width, H = canvas.height;
+    for (let i = 0; i < 6; i++)  bgItems.push({ k: 'cloud',  x: Math.random() * W, y: Math.random() * H, s: 60 + Math.random() * 60, f: 0.25 });
+    for (let i = 0; i < 22; i++) bgItems.push({ k: 'dot',    x: Math.random() * W, y: Math.random() * H, s: 1.5 + Math.random() * 2, f: 0.6 });
+    for (let i = 0; i < 14; i++) bgItems.push({ k: 'streak', x: Math.random() * W, y: Math.random() * H, s: 0,                       f: 1.7 });
+}
+
+function bgUpdateDraw(dt, isDark) {
+    if (!bgItems.length) bgInit();
+    const m = speedNow();
+
+    for (const b of bgItems) {
+        b.y += 3 * b.f * m * dt;
+        if (b.y > canvas.height + 120) { b.y = -80 - Math.random() * 100; b.x = Math.random() * canvas.width; }
+
+        if (b.k === 'cloud') {
+            ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.045)' : 'rgba(0, 115, 187, 0.055)';
+            ctx.beginPath();
+            ctx.ellipse(b.x, b.y, b.s, b.s * 0.45, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (b.k === 'dot') {
+            ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(35, 47, 62, 0.16)';
+            ctx.fillRect(b.x, b.y, b.s, b.s * 2.5);
+        } else if (m > 1.25) {
+            const a   = Math.min(0.35, (m - 1.25) * 0.2);
+            const len = 20 + Math.min(90, (m - 1) * 35);
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, ' + a + ')' : 'rgba(35, 47, 62, ' + a + ')';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y);
+            ctx.lineTo(b.x, b.y + len);
+            ctx.stroke();
+        }
+    }
+
+    // Tehlike vinyeti: hız arttıkça kenarlar turuncu → kırmızı
+    const level = Math.max(0, Math.min(1, (m - 1.8) / 1.6));
+    let   alpha = level > 0 ? 0.05 + 0.17 * level : 0;
+    let   rgb   = m < 2.8 ? '255, 153, 0' : '209, 50, 18';
+    // Dalga olayı boyunca yavaş nabız (saniyede ~1.1 kez; yanıp sönme sınırının çok altında)
+    if (wave) {
+        alpha = Math.max(alpha, 0.07) + 0.09 * (0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2 * Math.PI * 1.1));
+        rgb   = '209, 50, 18';
+    }
+    if (alpha > 0.01) {
+        const W = canvas.width, H = canvas.height, edge = 80;
+        let g = ctx.createLinearGradient(0, 0, edge, 0);
+        g.addColorStop(0, 'rgba(' + rgb + ', ' + alpha + ')'); g.addColorStop(1, 'rgba(' + rgb + ', 0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, edge, H);
+        g = ctx.createLinearGradient(W, 0, W - edge, 0);
+        g.addColorStop(0, 'rgba(' + rgb + ', ' + alpha + ')'); g.addColorStop(1, 'rgba(' + rgb + ', 0)');
+        ctx.fillStyle = g; ctx.fillRect(W - edge, 0, edge, H);
+    }
 }
 
 // ─── Çizim Yardımcıları ───────────────────────────────────────────────────────
@@ -577,6 +655,15 @@ function drawObject(obj, data, isEnemy) {
  */
 function stepWorld(dt, realMs) {
     const warming = Date.now() < warmupUntil;
+
+    // Geri sayım sesi (son 3 saniye) ve "BAŞLA!" sesi
+    if (warming) {
+        const n = Math.ceil((warmupUntil - Date.now()) / 1000);
+        if (n <= 3 && n !== lastCountN) { lastCountN = n; sfx.tick(); }
+    } else if (!goPlayed) {
+        goPlayed = true;
+        sfx.go();
+    }
 
     if (!warming) {
         playSec += realMs / 1000;
@@ -662,6 +749,7 @@ function stepWorld(dt, realMs) {
                 lastNearMiss = Date.now();
                 score += NEAR_MISS_POINTS * 10;
                 popups.push({ x: player.x, y: player.y - 70, text: 'Ramak kala! +' + NEAR_MISS_POINTS, color: '#8C4FFF', life: 60 });
+                scorePop();
                 fx.shake(4);
                 fx.burst(player.x + (e.x > player.x ? 30 : -30), player.y - 25, '#8C4FFF', 8, 3);
                 sfx.nearMiss();
@@ -680,7 +768,11 @@ function collectItem(col, warming) {
 
     streakAdd();
     fx.burst(col.x, col.y - 20, label ? label.color : '#FF9900', 12, 3.5);
-    if (type === 'basic') sfx.collect(streak); else sfx.power();
+    if (type === 'basic')       { sfx.collect(streak); scorePop(); }
+    else if (type === 'lambda') sfx.lambda();
+    else if (type === 's3')     sfx.s3();
+    else if (type === 'ec2')    sfx.ec2();
+    else                        sfx.power();
 }
 
 // ─── Ana Oyun Döngüsü ─────────────────────────────────────────────────────────
@@ -704,14 +796,19 @@ function updateGame(now) {
 
     // Oyun başlamadıysa veya bittiyse sadece boş canvas göster
     if (!gameStarted || isGameOver) {
-        // Oyuncu beklenirken (QR ekranı) arka planda yerel bir demo oynar: AWS çağrısı yok, ses yok
-        if (!gameStarted && !isGameOver && typeof demoUpdate === 'function') demoUpdate(dt, baseDt * FRAME_MS, isDark);
-        fx.update(dt);
+        if (isGameOver && crash) {
+            drawCrash(dt, baseDt * FRAME_MS, isDark);
+        } else {
+            // Oyuncu beklenirken (QR ekranı) arka planda yerel bir demo oynar: AWS çağrısı yok, ses yok
+            if (!gameStarted && !isGameOver && typeof demoUpdate === 'function') demoUpdate(dt, baseDt * FRAME_MS, isDark);
+            fx.update(dt);
+        }
         requestAnimationFrame(updateGame);
         return;
     }
 
     // Fizik: dt büyükse küçük adımlara böl (hızlı nesneler çarpışmayı atlamasın)
+    sfx.musicSetTempo(96 + 30 * (Math.min(speedNow(), 3.5) - 1));   // hız arttıkça müzik hızlanır
     const steps = Math.max(1, Math.ceil(dt / MAX_STEP_DT));
     for (let s = 0; s < steps && !isGameOver; s++) {
         stepWorld(dt / steps, (baseDt / steps) * FRAME_MS);
@@ -730,6 +827,16 @@ function drawWorld(dt, realMs, isDark) {
     ctx.translate(off.x, off.y);
 
     ctx.textAlign = 'center';
+    bgUpdateDraw(dt, isDark);
+
+    // Dalga engellerinin düşeceği hat: soluk kırmızı gölge (oyuncu önceden görür)
+    enemies.forEach(e => {
+        if (!e.wave || e.y > player.y) return;
+        const ew = e.size + 15, top = Math.max(0, e.y);
+        ctx.fillStyle = isDark ? 'rgba(255, 90, 60, 0.13)' : 'rgba(209, 50, 18, 0.09)';
+        ctx.fillRect(e.x - ew / 2, top, ew, player.y + 10 - top);
+    });
+
     collectibles.forEach(col => drawObject(col, col.itemData, false));
     enemies.forEach(e => drawObject(e, e.obsData, true));
 
@@ -823,6 +930,36 @@ function drawHud(realMs, isDark) {
         }
     }
 
+    // Geri sayım: ısınmanın son 3 saniyesi "3-2-1", bitince kısa "BAŞLA!"
+    {
+        const rem = warmupUntil - Date.now();
+        let big = null, color = '#FF9900', size = 150, frac = 0;
+        if (warmupUntil > 0 && rem > 0 && rem <= 3000) { big = String(Math.ceil(rem / 1000)); frac = (rem % 1000) / 1000; }
+        else if (warmupUntil > 0 && rem <= 0 && -rem < 900) { big = 'BAŞLA!'; color = '#1D8102'; size = 100; frac = 1 - (-rem) / 900; }
+        if (big) {
+            ctx.save();
+            ctx.globalAlpha = 0.35 + 0.65 * frac;
+            ctx.font        = 'bold ' + Math.round(size * (1 + 0.35 * frac)) + 'px Arial';
+            ctx.lineWidth   = 8;
+            ctx.strokeStyle = isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.85)';
+            ctx.strokeText(big, canvas.width / 2, canvas.height * 0.42);
+            ctx.fillStyle   = color;
+            ctx.fillText(big, canvas.width / 2, canvas.height * 0.42);
+            ctx.restore();
+        }
+    }
+
+    // Sunucu duvarı boşluk işareti: boşluğun üstünde zıplayan yeşil oklar
+    if (wave && wave.marker && performance.now() < wave.marker.until) {
+        const bob = Math.sin(performance.now() / 120) * 6;
+        ctx.fillStyle = '#1D8102';
+        ctx.font      = 'bold 30px Arial';
+        ctx.fillText('▼', wave.marker.x, 70 + bob);
+        ctx.fillText('▼', wave.marker.x, 100 + bob);
+        ctx.font      = 'bold 14px Arial';
+        ctx.fillText('BOŞLUK', wave.marker.x, 128 + bob);
+    }
+
     // Isınma ipucu (ilk saniyeler): telefonu eğerek bulutu hareket ettirmeyi öğret
     if (Date.now() < warmupUntil) {
         ctx.fillStyle = isDark ? '#FFFFFF' : '#232F3E';
@@ -853,6 +990,61 @@ function drawHud(realMs, isDark) {
     banners = banners.filter(b => b.life > 0);
 }
 
+// ─── Çarpma Sahnesi ──────────────────────────────────────────────────────────
+
+/** Windows "mavi ekran" esprisi: çarpmadan sonra canvas'ı kaplar. */
+function drawBsod(alpha, t) {
+    const W = canvas.width, H = canvas.height;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = '#0078D7';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 120px Arial';
+    ctx.fillText(':(', 50, 190);
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText('Bulutun çöktü.', 50, 250);
+    ctx.font = '18px Arial';
+    ctx.fillText('Eski bir donanıma takıldın ve bulutun yeniden', 50, 290);
+    ctx.fillText('başlatılması gerekiyor. AWS ile ışık hızına çık!', 50, 316);
+    const pct = Math.max(0, Math.min(100, Math.floor((t - 650) / 12)));
+    ctx.font = 'bold 22px Arial';
+    ctx.fillText('%' + pct + ' tamamlandı', 50, 380);
+    ctx.font = '13px Arial';
+    ctx.fillText('Hata kodu: LEGACY_HARDWARE_COLLISION', 50, 420);
+    ctx.restore();
+}
+
+/**
+ * Oyun biten karede başlayan çarpma sahnesini çizer: dünya donuk, bulut parçacıklara dağılır (ilk 0.7 sn
+ * yavaş çekim), tek bir sönümlü kırmızı flaş, sonra mavi ekran. Işığa duyarlılık için yanıp sönme yoktur.
+ */
+function drawCrash(dt, realMs, isDark) {
+    crash.t += realMs;
+    const slow = crash.t < 700 ? 0.35 : 1;
+
+    const off = fx.shakeOffset(dt * slow);
+    ctx.save();
+    ctx.translate(off.x, off.y);
+    ctx.textAlign = 'center';
+    bgUpdateDraw(dt * 0.15, isDark);
+    collectibles.forEach(col => drawObject(col, col.itemData, false));
+    enemies.forEach(e => drawObject(e, e.obsData, true));
+    fx.update(dt * slow);
+    fx.draw(ctx);
+    ctx.restore();
+
+    if (crash.t < 450) {
+        ctx.fillStyle = 'rgba(209, 50, 18, ' + (0.45 * (1 - crash.t / 450)) + ')';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (crash.t > 650) {
+        if (!crash.bsodSound) { crash.bsodSound = true; sfx.bsod(); }
+        drawBsod(Math.min(1, (crash.t - 650) / 250), crash.t);
+    }
+}
+
 // ─── Oyun Kontrolleri ─────────────────────────────────────────────────────────
 
 /** Çalışma durumunu sıfırlar (yeni oyun için). */
@@ -878,6 +1070,10 @@ function clearRunState() {
     nextWaveKind    = 'bsod';
     logoRainDone    = false;
     spawnPaused     = false;
+    crash           = null;
+    lastCountN      = null;
+    goPlayed        = false;
+    bgItems.length  = 0;
     clearTimeout(lambdaTimer);
     clearTimeout(ec2Timer);
     fx.clear();
@@ -893,9 +1089,21 @@ function endGame() {
     if (isGameOver) return; // aynı karede birden çok çarpışma skoru iki kez kaydetmesin
     isGameOver = true;
     if (typeof demoReset === 'function') demoReset();
+    sfx.musicStop();
     sfx.crash();
-    document.getElementById('gameOver').style.display  = 'block';
     document.getElementById('finalScore').innerText    = Math.floor(score / 10);
+
+    // Çarpma sahnesi: parçalanma, yavaş çekim, kırmızı flaş, mavi ekran. "Oyun bitti" kartı CRASH_MS sonra çıkar.
+    // (Skor kaydı ve telefona bildirim beklemeden hemen yapılır; gecikme yalnızca görseldir.)
+    const myCrash = { t: 0, bsodSound: false };
+    crash = myCrash;
+    fx.shake(22);
+    fx.burst(player.x, player.y - 25, '#FFFFFF', 26, 6.5);
+    fx.burst(player.x, player.y - 25, '#B39DDB', 18, 5);
+    fx.burst(player.x, player.y - 25, '#D13212', 18, 7.5);
+    setTimeout(() => {
+        if (crash === myCrash && isGameOver) document.getElementById('gameOver').style.display = 'block';
+    }, CRASH_MS);
 
     // DynamoDB kaydını aws modülüne devret
     if (typeof onGameOver === 'function') onGameOver(Math.floor(score / 10));
@@ -935,6 +1143,7 @@ function startGame() {
     clearRunState();
     if (typeof demoReset === 'function') demoReset();   // bekleme demosunu temizle
     gameStarted = true;
+    sfx.musicStart();
     document.getElementById('qrOverlay').style.display = 'none';
     warmupUntil = Date.now() + WARMUP_MS;
     // Isınma boyunca sadece güçlendiriciler gelir; engeller ısınma bitince başlar

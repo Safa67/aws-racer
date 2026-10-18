@@ -35,7 +35,8 @@ Proje AWS kulübü için yapıldığı için iki kısıt baştan geçerlidir: **
 | `7ddd458` | push edildi | Günlük dosyası güncellemesi |
 | `96eb525` | push edildi | Tam ekran/pencere boyutu değişince canvas yüksekliği güncellenir |
 | `5f2f09b` | push edildi | Kalkan ilk çarpmada gider (Lambda aktifken de), kalkan Lambda aktifken görünür |
-| (sonraki) | push edildi | Bekleme ekranı demosu (QR arkasında bot oyunu) |
+| `80e5890` | push edildi | Bekleme ekranı demosu (QR arkasında bot oyunu) |
+| (sonraki) | push edildi | Ek efektler: paralaks arka plan, çarpma sahnesi + mavi ekran, dalga gölgeleri, geri sayım, skor animasyonu, müzik ve yeni sesler |
 
 Eski yerel (commit edilmemiş) değişiklikler `git stash` içinde `stash@{0}` olarak duruyor. İçinde bozuk bir regex vardı (bölüm 3). İhtiyaç yoksa `git stash drop` ile silinebilir.
 
@@ -215,6 +216,17 @@ Oyuncu beklenirken (QR ekranı) QR kartının arkasında bir bot bulutu oynar (`
 - Bot sürekli ılımlı hızda (1.25x) oynar, çarparsa sessizce kaybolur, oyun bitmez. Sekme gizliyse çalışmaz.
 - Kapatmak için `js/monitor-demo.js` içinde `DEMO_ENABLED = false`.
 
+### Ek görsel efektler ve sesler
+Hepsi tarayıcıda çalışır, AWS maliyeti yoktur.
+- **Paralaks arka plan ve hız çizgileri:** Yavaş büyük bulutlar, orta hızda küçük "veri paketleri" ve hız arttıkça uzayan çizgiler akar. Hız çarpanıyla hızlanır.
+- **Tehlike vinyeti:** Ekran kenarları hız arttıkça turuncudan kırmızıya döner.
+- **Çarpma sahnesi:** Çarpınca bulut parçalanır (beyaz, mor ve kırmızı parçacıklar), ilk 0.7 sn yavaş çekim, tek bir sönümlü kırmızı flaş ve büyük ekran sallanması, ardından Windows "mavi ekran" esprisi (`:(`, "Bulutun çöktü.", `%N tamamlandı`, hata kodu `LEGACY_HARDWARE_COLLISION`). "Oyun bitti" kartı 1.9 sn sonra çıkar. **Skor kaydı ve telefona bildirim gecikmez**, yalnızca görsel gecikir. Yanıp sönen strobe yoktur (tek flaş, nabızlar saniyede ~1 kez).
+- **Dalga uyarıları:** Dalga başlayınca kenarlar yavaşça kırmızı nabız atar. Dalga engellerinin düşeceği hatlar soluk kırmızı gölgeyle işaretlenir. Sunucu Duvarı'nda boşluğun üstünde zıplayan yeşil "▼ BOŞLUK" işareti çıkar.
+- **Geri sayım:** Isınmanın son 3 saniyesinde ekran ortasında "3 - 2 - 1", sonra kısa "BAŞLA!" (tik sesleriyle).
+- **Skor animasyonu:** Puan alınca (logo, ramak kala, dönüm noktası) skor rakamı büyüyüp küçülür.
+- **Yeni sesler:** Lambda "whoosh", S3 metalik çın, EC2 dijital bip, daha belirgin seri bozulma sesi (alçalan çift ton + vuruş), mavi ekran hata sesi, geri sayım tikleri ve "BAŞLA" sesi.
+- **Arka plan müziği:** WebAudio ile üretilen La minör arpej + bas, oyun başlayınca çalar, hız arttıkça tempo artar (96 BPM'den ~170'e), oyun bitince durur. Yanındaki "🎵 Müzik" düğmesiyle ayrıca açılıp kapatılır; "🔊 Ses" düğmesi hepsini kapatır.
+
 ### Juice (geri bildirim)
 - **Parçacıklar:** ödül alınca renkli patlama, kalkan kırılınca mavi patlama, çarpmada kırmızı, konfeti (dönüm noktası / ilk 3).
 - **Ekran sallanması:** kalkan kırılması, ramak kala, dalga başlangıcı (dünya sallanır, yazılar sallanmaz).
@@ -305,7 +317,7 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 | Dosya | Görev |
 |---|---|
 | `Monitor.html`, `js/monitor-game.js` | Oyun, çizim, dt tabanlı döngü, zorluk, seri, dalgalar, kutlamalar, canlı sıra, hız test butonları |
-| `js/monitor-fx.js` | Parçacıklar, ekran sallanması, WebAudio ses efektleri |
+| `js/monitor-fx.js` | Parçacıklar, ekran sallanması, WebAudio ses efektleri ve arka plan müziği |
 | `js/monitor-demo.js` | Bekleme ekranı demosu (QR arkasında bot oyunu, AWS çağrısı yok) |
 | `js/monitor-mqtt.js` | MQTT bağlantısı, eğim eğrisi, oda kilidi, oyuncu adı/cihaz kodu işleme |
 | `js/monitor-aws.js` | Cognito, DynamoDB tarama/yazma, skor tabloları, günün sırası önbelleği, `escapeHtml`, `scanAll` |
