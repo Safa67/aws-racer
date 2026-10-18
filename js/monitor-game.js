@@ -640,16 +640,17 @@ function stepWorld(dt, realMs) {
         const dx = Math.abs(px - ex);
 
         if (dx < limitX && Math.abs(py - ey) < limitY) {
-            if (isInvincible) {
-                fx.burst(e.x, e.y - 20, '#FF9900', 10, 4);
-                e.y = canvas.height + 200;          // Yenilmezken engeli temizle
-            } else if (hasShield) {
+            if (hasShield) {
+                // Kalkan ilk çarpmada gider (Lambda aktif olsa bile). Lambda koruyorsa seri bozulmaz.
                 hasShield = false;
                 fx.burst(e.x, e.y - 20, '#0073BB', 20, 5);
                 fx.shake(9);
                 sfx.shield();
-                streakBreak();                        // Kalkan bir çarpmayı söndürür, seri bozulur
+                if (!isInvincible) streakBreak();     // Kalkan bir çarpmayı söndürür, seri bozulur
                 e.y = canvas.height + 200;
+            } else if (isInvincible) {
+                fx.burst(e.x, e.y - 20, '#FF9900', 10, 4);
+                e.y = canvas.height + 200;          // Yenilmezken engeli temizle
             } else {
                 endGame();
                 return;
@@ -736,11 +737,15 @@ function drawWorld(dt, realMs, isDark) {
         ctx.arc(player.x, player.y - 20, 50, 0, 2 * Math.PI);
         ctx.fillStyle = isDark ? 'rgba(255, 230, 0, 0.4)' : 'rgba(255, 153, 0, 0.4)';
         ctx.fill();
-    } else if (hasShield) {
+    }
+    if (hasShield) {
+        // Kalkan, Lambda aktifken de görünür (önceden Lambda halkası kalkanı gizliyordu)
         ctx.beginPath();
-        ctx.arc(player.x, player.y - 20, 50, 0, 2 * Math.PI);
-        ctx.fillStyle   = isDark ? 'rgba(0, 161, 201, 0.4)' : 'rgba(0, 115, 187, 0.15)';
-        ctx.fill();
+        ctx.arc(player.x, player.y - 20, isInvincible ? 56 : 50, 0, 2 * Math.PI);
+        if (!isInvincible) {
+            ctx.fillStyle = isDark ? 'rgba(0, 161, 201, 0.4)' : 'rgba(0, 115, 187, 0.15)';
+            ctx.fill();
+        }
         ctx.strokeStyle = isDark ? '#00A1C9' : '#0073BB';
         ctx.lineWidth   = 3;
         ctx.stroke();
