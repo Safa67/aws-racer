@@ -65,8 +65,11 @@ async function startMqtt() {
     // Telefon shadow'u her güncellediğinde bu fonksiyon tetiklenir
     mqttClient.on('message', _handleMqttMessage);
 
+    let retryScheduled = false; // end() 'close'u tekrar tetikleyebilir; yinelenen bağlantıları önler
     client.on('close', () => {
-        if (mqttClient !== client) return;
+        if (mqttClient !== client || retryScheduled) return;
+        retryScheduled = true;
+        console.warn('MQTT bağlantısı koptu, 3 sn sonra taze imzayla yeniden bağlanılacak.');
         document.getElementById('status').innerText   = 'MQTT Yeniden Bağlanıyor... 🟡';
         document.getElementById('status').style.color = '#FF9900';
         client.end(true);
@@ -158,14 +161,12 @@ function _handleMqttMessage(topic, message) {
 
             // Kavisli Duyarlılık: Küçük eğimlerde yüksek hassasiyet, büyük eğimlerde güç.
             // (Math.pow ile doğrusal olmayan bir ivmelenme sağlanır)
-            // Eğri: küçük eğimlerde sakin (üs 1.4), 45° ve üstünde en yüksek hız (9.85 px/kare).
-            // Eski eğri (açı^1.12 / 7.2) küçük eğimlerde fazla hareketliydi.
-            const rawTilt   = desired.tilt;
-            const MAX_TILT  = 45;
-            const MAX_SPEED = 9.85;
-            const exponent  = 1.4;
-            const ratio     = Math.min(Math.abs(rawTilt) / MAX_TILT, 1);
-            const curvedSpeed = Math.sign(rawTilt) * MAX_SPEED * Math.pow(ratio, exponent);
+            // Kavisli Duyarlılık: Küçük eğimlerde yüksek hassasiyet, büyük eğimlerde güç.
+            // (Math.pow ile doğrusal olmayan bir ivmelenme sağlanır)
+            const rawTilt     = desired.tilt;
+            const sensitivity = 7.2;
+            const exponent    = 1.12;
+            const curvedSpeed = Math.sign(rawTilt) * Math.pow(Math.abs(rawTilt), exponent) / sensitivity;
 
             setTargetSpeed(curvedSpeed);
         }

@@ -136,8 +136,11 @@ function spawnCollectible() {
  * @param {string} type - 'basic' | 'lambda' | 's3' | 'ec2'
  */
 function applyPowerup(type) {
+    // Isınma turunda güçlendiriciler alınır ama hiçbir etkisi olmaz (puan da yok)
+    if (Date.now() < warmupUntil) return;
+
     if (type === 'basic') {
-        if (Date.now() >= warmupUntil) score += (50 * scoreMultiplier); // ısınmada puan yok
+        score += (50 * scoreMultiplier);
 
     } else if (type === 'lambda') {
         // Yenilmezlik + Hız artışı (4 saniye)
@@ -352,6 +355,7 @@ function updateGame() {
         ctx.fillText('ISINMA: Telefonu eğ, bulutu oynat!', canvas.width / 2, 120);
         ctx.font = '18px Arial';
         ctx.fillText('Engeller ' + Math.ceil((warmupUntil - Date.now()) / 1000) + ' sn sonra başlıyor', canvas.width / 2, 150);
+        ctx.fillText('Bu sürede puan ve güçlendiriciler geçerli değil', canvas.width / 2, 176);
     }
 
     // EC2 aktifken x2 göstergesi

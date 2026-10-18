@@ -14,7 +14,7 @@ let PLAYER_NAME      = '';
 let ATTEMPTS_LEFT    = MAX_ATTEMPTS; // Bu oyun dahil kalan hak
 let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
 let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
-const SENSOR_SMOOTH  = 0.3;  // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı). 0.5 fazla titrek hissettirdi.
+const SENSOR_SMOOTH  = 0.25; // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
 
 // Daha önce bu telefonda kullanılan isim kutuya otomatik gelir
 try {
@@ -169,6 +169,9 @@ document.getElementById('tutReadyBtn').addEventListener('click', () => {
         return;
     }
 
+    // Sensör olayını beklemeden monitöre "oyuncu hazır" sinyali ver (oyun başlar, 4 sn ısınma var)
+    startHeartbeat();
+
     // iOS: Sensör izni gerekiyor
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -215,6 +218,7 @@ let calibOffset   = 0;
 let calibSum      = 0;
 let calibCount    = 0;
 let rawGammaLast  = 0;
+let lastOutTilt   = 0; // Telefondan en son gönderilen eğim (kalp atışı bunu tekrarlar)
 let padMode       = false;
 
 /** Mevcut tutuş açısını merkez yapar (Sıfırla butonu). */
@@ -256,22 +260,40 @@ function startSensing() {
         updateTiltBar(smoothedGamma);
 
         // AWS'ye filtrelenmiş veriyi gönder
-        sendDataToAWS(Math.round(smoothedGamma * sensGain), PLAYER_NAME);
+        lastOutTilt = Math.round(smoothedGamma * sensGain);
+        sendDataToAWS(lastOutTilt, PLAYER_NAME);
     });
+}
+
+/**
+ * Sensör olayı gelmese bile (telefon sabit, izin bekliyor, kalibrasyon sürüyor) monitöre düzenli sinyal yollar.
+ * İlk sinyal oyunu başlatır; bu olmadan hiç sensör olayı gelmezse monitör bekleme ekranında kalırdı.
+ */
+function startHeartbeat() {
+    sendDataToAWS(lastOutTilt, PLAYER_NAME);
+    const hb = setInterval(() => {
+        if (gameOverShown) { clearInterval(hb); return; }
+        sendDataToAWS(lastOutTilt, PLAYER_NAME);
+    }, 300);
 }
 
 // ─── Yön Tuşları (isteğe bağlı) ───────────────────────────────────────────────
 
-const PAD_TILT = 35; // Tuşa basılıyken gönderilen eşdeğer eğim (monitörde ~7.5 hıza denk gelir)
+// Tuşa basılı tutuldukça hız artar: PAD_START (hafif) → PAD_MAX (tam hız), PAD_RAMP_MS içinde.
+// Bırakınca ya da yön değişince başa döner. Eşdeğer eğim açısıdır (45° = en yüksek hız).
+const PAD_START   = 12;
+const PAD_MAX     = 45;
+const PAD_RAMP_MS = 900;
 
 /**
  * Eğim yerine ekrandaki ◀ ▶ tuşlarıyla oynamayı başlatır.
- * Basılı tutulan yön PAD_TILT olarak gönderilir; bırakılınca 0. 100 ms'de bir tekrar gönderilir
+ * Basılı tutulan yön gönderilir (tuttukça hızlanır); bırakılınca 0. 50 ms'de bir tekrar gönderilir
  * (kopan paket tuşu takılı bırakmasın).
  */
 function startPadMode() {
     padMode = true;
     let dir = 0;
+    let pressedAt = 0; // Mevcut yönün basılma zamanı
     const left  = document.getElementById('padLeft');
     const right = document.getElementById('padRight');
     document.getElementById('padControls').style.display = 'flex';
@@ -281,15 +303,18 @@ function startPadMode() {
 
     const press = (d, btn) => (e) => {
         e.preventDefault();
+        if (dir !== d) pressedAt = Date.now();
         dir = d;
         btn.classList.add('pressed');
     };
     const release = (btn) => (e) => {
         e.preventDefault();
         // Diğer tuş hâlâ basılıysa onun yönünü koru
+        const prev = dir;
         if (btn === left && right.classList.contains('pressed')) dir = 1;
         else if (btn === right && left.classList.contains('pressed')) dir = -1;
         else dir = 0;
+        if (dir !== prev) pressedAt = Date.now();
         btn.classList.remove('pressed');
     };
     [[left, -1], [right, 1]].forEach(([btn, d]) => {
@@ -300,7 +325,8 @@ function startPadMode() {
 
     const padTimer = setInterval(() => {
         if (gameOverShown) { clearInterval(padTimer); return; }
-        const value = dir * PAD_TILT;
+        const held  = dir === 0 ? 0 : Math.min((Date.now() - pressedAt) / PAD_RAMP_MS, 1);
+        const value = dir === 0 ? 0 : Math.round(dir * (PAD_START + (PAD_MAX - PAD_START) * held));
         document.getElementById('tiltDisplay').innerText = dir === 0 ? 'Tuş: -' : (dir < 0 ? 'Tuş: ◀' : 'Tuş: ▶');
         updateTiltBar(value);
         sendDataToAWS(value, PLAYER_NAME);
