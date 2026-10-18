@@ -15,6 +15,14 @@ const ctx    = canvas.getContext('2d');
 canvas.height = window.innerHeight;
 
 // --- Oyun durumu ---
+// Kare hızından bağımsız hareket: tüm hızlar "60 fps'de kare başına piksel" olarak ayarlı.
+// Her karede geçen süre bu referansa oranlanır (dt = 1 → 60 Hz'deki bir kare), böylece
+// 30, 60, 144 veya 240 Hz ekranda oyun aynı hızda ve aynı hissiyatta çalışır.
+const FRAME_MS     = 1000 / 60;
+const MAX_FRAME_DT = 3;   // Sekme arka plandan dönünce/takılınca nesneler ışınlanmasın
+let lastFrameTime  = 0;
+let nextSpeedUp    = 500; // Bir sonraki hızlanma eşiği (puan)
+
 const WARMUP_MS = 4000; // Oyun başında engelsiz ısınma süresi
 let isGameOver      = false;
 let gameStarted     = false;
@@ -213,7 +221,12 @@ function drawObject(obj, data, isEnemy) {
 
 // ─── Ana Oyun Döngüsü ─────────────────────────────────────────────────────────
 
-function updateGame() {
+function updateGame(now) {
+    // dt: geçen süre / 60 fps karesi. İlk karede ve ölçülemeyen durumda 1.
+    now = now || performance.now();
+    const dt = lastFrameTime ? Math.max(0.2, Math.min((now - lastFrameTime) / FRAME_MS, MAX_FRAME_DT)) : 1;
+    lastFrameTime = now;
+
     let isDark = document.body.classList.contains('dark-theme');
 
     if (isDark) {
@@ -232,23 +245,27 @@ function updateGame() {
     // Zaman tabanlı skor artışı
     // Isınma turunda puan işlemez (hassasiyete alışma süresi, skor tablosuna yansımaz)
     if (Date.now() >= warmupUntil) {
-        score += Math.floor(1 * scoreMultiplier);
+        score += scoreMultiplier * dt;
         document.getElementById('scoreVal').innerText = Math.floor(score / 10);
 
         // Her 500 puanda hızlanma (yenilmezlik sırasında hızlanma olmaz)
-        if (score % 500 === 0 && !isInvincible) speedMultiplier += 0.15;
+        if (score >= nextSpeedUp) {
+            nextSpeedUp += 500;
+            if (!isInvincible) speedMultiplier += 0.15;
+        }
     }
 
     // Lerp ile yumuşak hareket — 0.25: kontrolün "sinirli" hissettirmemesi için denge (0.35 fazla tepkiliydi)
-    player.speedX += (targetSpeedX - player.speedX) * 0.25;
-    player.x      += player.speedX;
+    // 0.25 değeri 60 fps'deki bir karenin oranıdır; farklı kare süresinde 1 - 0.75^dt ile eşdeğeri alınır.
+    player.speedX += (targetSpeedX - player.speedX) * (1 - Math.pow(0.75, dt));
+    player.x      += player.speedX * dt;
     player.x       = Math.max(30, Math.min(canvas.width - 30, player.x));
 
     // --- Güçlendiriciler ---
     ctx.textAlign = 'center';
     for (let i = 0; i < collectibles.length; i++) {
         let col = collectibles[i];
-        col.y  += col.speedY;
+        col.y  += col.speedY * dt;
         drawObject(col, col.itemData, false);
 
         // Çarpışma algılama (Ödüller için genişletildi - Box Collider)
@@ -267,7 +284,7 @@ function updateGame() {
     // --- Engeller ---
     for (let i = 0; i < enemies.length; i++) {
         let e  = enemies[i];
-        e.y   += e.speedY;
+        e.y   += e.speedY * dt;
         drawObject(e, e.obsData, true);
 
         // Çarpışma algılama (Görsele göre birebir hitbox, %10 dış kısımdan tolerans)
@@ -402,6 +419,7 @@ function resetGame() {
     scoreMultiplier = 1;
 
     warmupUntil = 0;
+    nextSpeedUp = 500;
     clearTimeout(lambdaTimer);
     clearTimeout(ec2Timer);
 

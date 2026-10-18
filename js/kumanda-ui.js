@@ -14,7 +14,8 @@ let PLAYER_NAME      = '';
 let ATTEMPTS_LEFT    = MAX_ATTEMPTS; // Bu oyun dahil kalan hak
 let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
 let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
-const SENSOR_SMOOTH  = 0.25; // EMA katsayısı (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
+const SENSOR_SMOOTH  = 0.25; // EMA katsayısı: 60 olay/sn'deki değer (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
+let lastSensorTime   = 0;    // Önceki sensör olayının zamanı (olay hızı cihaza göre 60–200 Hz değişir)
 
 // Daha önce bu telefonda kullanılan isim kutuya otomatik gelir
 try {
@@ -251,7 +252,12 @@ function startSensing() {
         }
 
         // EMA Filtresi: Sensördeki titremeleri ve ani sıçramaları temizler
-        smoothedGamma = ((rawGamma - calibOffset) * SENSOR_SMOOTH) + (smoothedGamma * (1 - SENSOR_SMOOTH));
+        // Olay hızından bağımsız EMA: katsayı geçen süreye göre ölçeklenir (60 Hz'de tam SENSOR_SMOOTH)
+        const nowMs  = performance.now();
+        const evDt   = lastSensorTime ? Math.max(0.25, Math.min((nowMs - lastSensorTime) / (1000 / 60), 4)) : 1;
+        lastSensorTime = nowMs;
+        const alpha  = 1 - Math.pow(1 - SENSOR_SMOOTH, evDt);
+        smoothedGamma = ((rawGamma - calibOffset) * alpha) + (smoothedGamma * (1 - alpha));
 
         // Tilt değerini ekranda göster
         document.getElementById('tiltDisplay').innerText = `Eğim: ${Math.round(smoothedGamma)}°`;
