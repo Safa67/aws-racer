@@ -829,14 +829,6 @@ function drawWorld(dt, realMs, isDark) {
     ctx.textAlign = 'center';
     bgUpdateDraw(dt, isDark);
 
-    // Dalga engellerinin düşeceği hat: soluk kırmızı gölge (oyuncu önceden görür)
-    enemies.forEach(e => {
-        if (!e.wave || e.y > player.y) return;
-        const ew = e.size + 15, top = Math.max(0, e.y);
-        ctx.fillStyle = isDark ? 'rgba(255, 90, 60, 0.13)' : 'rgba(209, 50, 18, 0.09)';
-        ctx.fillRect(e.x - ew / 2, top, ew, player.y + 10 - top);
-    });
-
     collectibles.forEach(col => drawObject(col, col.itemData, false));
     enemies.forEach(e => drawObject(e, e.obsData, true));
 
