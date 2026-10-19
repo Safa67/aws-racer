@@ -156,20 +156,26 @@ function onGameOver(finalScore) {
     // Resmi hızdan (DEFAULT_TIME_SCALE) farklı test hızında skorlar karşılaştırılamaz; tabloya yazılmaz
     if (typeof timeScale !== 'undefined' && timeScale !== DEFAULT_TIME_SCALE) {
         console.info('Test hızı aktif (' + timeScale + 'x): skor kaydedilmedi.');
-    } else if (dynamoClient && activePlayerName !== 'Anonim') {
-        dynamoClient.put({
-            TableName: AWS_CONFIG.dynamoTable,
-            Item: {
-                SessionId:  ODA_ID,
-                PlayerName: activePlayerName,
-                Score:      finalScore,
-                DeviceId:   activeDeviceId || 'bilinmiyor', // 3 hak kuralı + isim sahipliği için
-                Day:        todayKey(),                     // Günün skor tablosu için
-                PlayedAt:   Date.now(),
-            },
-        }, function (err) {
-            if (!err) fetchLeaderboard(); // Kaydedince leaderboard'u hemen güncelle
-        });
+    } else if (activePlayerName !== 'Anonim') {
+        // Skor artık tarayıcıdan DynamoDB'ye değil, doğrulayan bir Lambda'ya gönderilir
+        // (OWASP A01: tarayıcı konsolundan sahte skor yazma açığı). Bkz. lambda/submit-score/.
+        fetch(AWS_CONFIG.scoreApiUrl, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                playerName: activePlayerName,
+                score:      finalScore,
+                deviceId:   activeDeviceId || 'bilinmiyor',
+                playedMs:   Math.round((typeof playSec !== 'undefined' ? playSec : 0) * 1000),
+                roomId:     ODA_ID,
+            }),
+        })
+            .then((res) => res.json().catch(() => ({})).then((data) => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (ok) { fetchLeaderboard(); return; } // Kaydedince leaderboard'u hemen güncelle
+                console.warn('Skor kaydedilmedi:', data && data.reason);
+            })
+            .catch((err) => console.error('Skor API hatası:', err));
     }
 
     // Oyuncu bilgilerini sıfırla

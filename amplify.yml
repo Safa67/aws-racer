@@ -12,6 +12,7 @@ frontend:
               iotEndpoint:   '${IOT_ENDPOINT}',
               cognitoPoolId: '${COGNITO_POOL_ID}',
               dynamoTable:   '${DYNAMO_TABLE}',
+              scoreApiUrl:   '${SCORE_API_URL}',
           };
           EOF
   artifacts:

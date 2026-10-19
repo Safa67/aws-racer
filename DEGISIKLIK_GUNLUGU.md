@@ -310,7 +310,7 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 
 ## 14. OWASP Top 10 incelemesi ve düzeltmeler
 
-Kod + canlı siteye (`main`, kimliksiz Cognito rolüyle, salt-okunur/koşullu yoklamalar; hiçbir yazma gerçek veriye dokunmadı) karşı OWASP Top 10 (2021) taraması yapıldı. 7 bulgudan **4'ü kod üzerinden düzeltildi**, 3'ü AWS konsolu gerektirir (aşağıda).
+Kod + canlı siteye (`main`, kimliksiz Cognito rolüyle, salt-okunur/koşullu yoklamalar; hiçbir yazma gerçek veriye dokunmadı) karşı OWASP Top 10 (2021) taraması yapıldı. 7 bulgudan **6'sı kapatıldı** (4'ü kod, 2'si AWS konsolu/altyapı), **1'i (rate limiting) açık kaldı**.
 
 ### Kod üzerinden düzeltilenler
 
@@ -320,11 +320,19 @@ Kod + canlı siteye (`main`, kimliksiz Cognito rolüyle, salt-okunur/koşullu yo
 - **A05, Orta — CloudFront güvenlik başlıkları yoktu:** `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` eklendi. CSP'nin `script-src`'i satır içi script çalıştırmaz; bu yüzden tema değiştirici (`onclick`, satır içi `<script>`) `js/theme.js` dosyasına taşındı (iki sayfa da kullanıyor). `connect-src`/`worker-src` gerçek Cognito + IoT Core (WSS) + DynamoDB trafiğiyle ve aws-sdk/mqtt.js'in kullandığı Web Worker ile doğrulandı (yerel sunucuda aynı başlıkları gönderen bir test sunucusuyla: bağlantı, tema düğmesi, oyun, tek dokunuşla tuş, "oyun bitti" sinyali, çarpma sahnesi — hepsi CSP altında hatasız).
   **Dosya yeri düzeltmesi:** İlk denemede başlıklar `amplify.yml`'deki `customHeaders` anahtarına yazıldı; `test` dalına push edilip yayınlandı ama **hiç etkisi olmadı** (CloudFront yanıtında başlıklar yoktu). Sebep: bu Amplify uygulamasında Hosting, başlıkları `amplify.yml`'den değil, repo kökündeki ayrı **`customHttp.yml`** dosyasından okuyor (Amplify konsolu → Hosting → Custom headers and cache ekranı bunu gösterdi; o dosya boştu). Aynı içerik `customHttp.yml`'e taşındı, `amplify.yml`'deki etkisiz blok kaldırılıp yerine açıklama notu bırakıldı. **Bu dosya konumu uygulamaya özgü olabilir** — başka bir Amplify uygulamasında `amplify.yml`'deki `customHeaders` çalışabilir; emin olmanın yolu Hosting → Custom headers and cache ekranına bakmak.
 
-### AWS konsolu gerektiren, kod üzerinden çözülemeyenler
+### AWS konsolu/altyapı üzerinden kapatılanlar
 
-- **A01, Kritik — MQTT konularında aşırı geniş izin:** Kimliksiz Cognito rolü `awsracer/+/tilt`, `awsracer/#` gibi joker konulara abone olabiliyor (test: denenen 7 konunun 7'si de izin verildi). Herhangi biri tüm standlardaki aktif odaları, oyuncu adlarını ve cihaz kodlarını dinleyebilir; oda kilidi (`lockedDeviceId`) yalnızca istemci tarafında, MQTT katmanında bir ACL yok. **Düzeltme AWS IoT Core politikasında** (konuları `${iot:Connection.Thing.ThingName}` ya da Cognito kimliğine göre daraltmak), kod değişikliği değildir.
-- **A01, Yüksek — DynamoDB'ye doğrudan istemci yazımı:** Kimliksiz rol tabloya `PutItem` yapabiliyor (sahte skor riski, bölüm 14'te zaten not edilmişti). Kalıcı çözüm bir Lambda/API Gateway arkasına almak — **yeni AWS kaynağı ve karar gerektirir**, kullanıcıyla konuşulmadan kurulmadı.
-- **A04, Orta — Rate limiting yok:** Kimliksiz kimlikle sınırsız `PutItem`/`scan` atılabilir (maliyet/DoS riski). **AWS IoT policy/throttling ayarı**, konsoldan yapılır.
+- **A01, Kritik (kapatıldı) — MQTT konularında aşırı geniş izin.** Kimliksiz Cognito rolü `awsracer/+/tilt`, `awsracer/#` gibi joker konulara abone olabiliyordu (test: denenen 7 konunun 7'si de izin veriliyordu), herhangi biri tüm standlardaki aktif odaları dinleyebilirdi. Sebep, role bağlı **AWS yönetimli `AWSIoTDataAccess`** politikasıydı (`"Resource": "*"`, tüm IoT mesajlaşma eylemlerine tam erişim). AWS yönetimli politikalar düzenlenemez, sadece kaldırılabilir.
+  - `AWSIoTDataAccess` role'den **kaldırıldı**.
+  - Rolün inline politikası (`AwsRacerGuvenlikPolitikasi`) yeniden yazıldı: `iot:Connect` yalnızca `client/monitor-*` ve `client/phone-*`'a, `iot:Publish`/`iot:Subscribe`/`iot:Receive` yalnızca `awsracer/*` ve `$aws/things/awsracer-*/shadow/*` konularına, `iot:GetThingShadow`/`UpdateThingShadow` yalnızca `thing/awsracer-*`'a daraltıldı. Ayrıca `topicfilter` içinde `+` ya da `#` geçen her abonelik isteğini **açıkça reddeden** bir `Deny` ifadesi eklendi (IAM'de `awsracer/*` gibi joker karakterli kaynak kalıpları, istemcinin gönderdiği MQTT joker karakterli konu isteğini de düz metin olarak eşleştirir; `Deny` bu açığı kapatan asıl kısımdır).
+  - **Doğrulama (canlı sitede):** Joker konuya (`awsracer/+/tilt`, `#`) abonelik denemesi artık bağlantının kesilmesiyle sonuçlanıyor ("Connection closed"). Düz konulara (`awsracer/<oda>/state`, shadow) abonelik hâlâ çalışıyor. Tam oyun akışı (bağlan, isim gir, oyna, tuşla hareket, "oyun bitti" sinyali) gerçek MQTT ile yeniden test edildi, bozulan bir şey yok.
+- **A01, Yüksek (kapatıldı) — DynamoDB'ye doğrudan istemci yazımı.** Kimliksiz rol tabloya doğrudan `PutItem` yapabiliyordu (tarayıcı konsolundan sahte skor riski). Yeni bir Lambda ile çözüldü:
+  - **`lambda/submit-score/index.js`** (repoda, CommonJS kaynak — AWS konsolu/CloudShell'e ESM olarak dönüştürülüp deploy edildi, aşağıya bakın): isim uzunluğu/küfür kontrolünü (istemciyle aynı mantık) ve bir **skor/süre oran sınırını** sunucu tarafında tekrar uygular. Sınır: `maxAllowed = 50 × (playedMs/1000) + 600` ekran puanı — gerçek oyunun sürekli üst sınırının (~36 puan/sn) üstünde, cömert bırakıldı; amaç "tarayıcı konsolundan tek satırla sahte skor yazma" saldırısını kapatmak, oyunu tam simüle etmek değil.
+  - **Altyapı:** Lambda (Node.js 24.x, Function URL, Auth: NONE, CORS açık), execution role'üne yalnızca `AwsRacerScores` tablosuna `dynamodb:PutItem` izni verildi. Tarayıcı artık bu tabloya **hiç yazma izni yok** — bu değişiklikten sonra `AwsRacerGuvenlikPolitikasi`'ndan `dynamodb:PutItem` kaldırılmalı (bkz. bölüm 15, henüz yapılmadı).
+  - **Frontend:** `js/monitor-aws.js`'deki `onGameOver`, `dynamoClient.put()` yerine `fetch(AWS_CONFIG.scoreApiUrl, ...)` kullanıyor; `js/config.js`/`amplify.yml`'e `scoreApiUrl` eklendi, Amplify app ortam değişkenlerine `SCORE_API_URL` (Lambda Function URL) eklendi.
+  - **Doğrulama (canlı Lambda'ya `curl` ile, CloudShell'den):** Geçerli istek (`deneyici1234`, 123 puan, 30 sn) → `{"ok":true}`, gerçek DynamoDB yazımı başarılı. Konsol saldırısı tarzı istek (99999 puan, 5 sn) → `{"ok":false,"reason":"score_rate_exceeded"}`. Yerel testte isim/küfür/oran/eksik alan senaryolarının hepsi doğru sebeple reddedildi.
+  - **Dağıtım notu (ileride tekrar gerekirse):** Lambda konsolunun Monaco kod editörüne büyük dosya `type` ile yazdırmak güvenilir değil (otomatik parantez kapatma uzun çok satırlı metni bozuyor; tek satır ~6500+ karakterde tarayıcı araç çağrısı zaman aşımına uğruyor). Güvenilir yöntem: dosyayı **CloudShell'e dosya yükleme özelliğiyle** (Actions → Upload file, ya da doğrudan dosya `<input>` elemanına) yükleyip `aws lambda update-function-code --zip-file fileb://...` ile deploy etmek. (Bir ara denemede heredoc'un terminalde doğru submit olmaması "File name too long" hatasına ve 0 bayt'lık bir artık dosyaya yol açtı; dosya yüklemeden önce `rm -f` ile temizlendi.)
+- **A04, Orta (kısmen azaltıldı) — Rate limiting.** DynamoDB'ye doğrudan yazım kapandığı için (yukarıdaki A01 düzeltmesi) kimliksiz kimlikle sınırsız `PutItem` atma riski zaten ortadan kalktı. **Kalan risk:** Lambda Function URL'sine (herkese açık, Auth: NONE) ve kimliksiz kimlikle `dynamodb:Scan`'e karşı AWS seviyesinde bir istek sınırlaması (throttling/WAF) yok — biri Lambda'yı ya da taramayı spam'leyip maliyet oluşturabilir. Lambda'nın kendi içindeki oran kontrolü sahte skora karşı korur ama istek sayısını sınırlamaz. **Düzeltme AWS konsolunda** (Lambda'da eşzamanlılık sınırı / rezerve edilmiş eşzamanlılık, ya da CloudFront'a WAF rate-based kural eklemek) — bu oturumda yapılmadı.
 
 ### Etkilenmeyen/düşük öncelikli maddeler
 A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtresi). A07 (kimlik doğrulama) tasarım gereği kimliksiz. A09 (loglama) ve A10 (SSRF) bu projede kapsam dışı/uygulanamaz.
@@ -333,19 +341,20 @@ A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtres
 
 Öncelik sırasıyla:
 
-1. **Sahte skor:** Cognito kimliksiz rolü DynamoDB'ye doğrudan yazabiliyor. Tarayıcı konsolundan herkes istediği skoru yazabilir. Ödül verilecekse birincinin gerçekliğini monitörden doğrulayın. Kalıcı çözüm (Lambda/API Gateway) ek AWS maliyeti getirir, bu yüzden bilinçli ertelendi.
+1. **Tarayıcı rolünden `dynamodb:PutItem` kaldırılmalı.** DynamoDB yazımı artık Lambda üzerinden (bölüm 14), tarayıcının bunu doğrudan yapmasına gerek kalmadı. `AwsRacerGuvenlikPolitikasi`'ndaki `DynamoDBScores` ifadesinden `PutItem` çıkarılıp yalnızca `Scan` bırakılmalı (bu son sıkılaştırma adımı henüz yapılmadı; önce `test` dalındaki yeni frontend'in Lambda'yı kullandığı canlı sitede doğrulanmalı, sonra yapılmalı — sırayı bozarsa skor kaydı tamamen durur).
 2. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
-3. **Dış bağımlılıklar:** AWS SDK v2 (desteği sona eriyor) ve mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
+3. **Dış bağımlılıklar:** mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
 4. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
 5. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
-6. **Etkinlik öncesi kontrol listesi:**
+6. **Rate limiting (A04):** Lambda Function URL ve `dynamodb:Scan`'e karşı istek sınırlaması yok (bölüm 14).
+7. **Etkinlik öncesi kontrol listesi:**
    - Oyun hızı test butonları artık varsayılan olarak gizli (yalnızca `Monitor.html?test=1` ile görünür). Ses ve müzik düğmeleri her zaman görünür.
    - DynamoDB'deki test/eski kayıtları temizleyin (skorlar yükseldi).
    - Monitör bilgisayarında sayfaya bir kez tıklayarak sesi açın (ya da Chrome'u autoplay bayrağıyla başlatın).
    - Monitör bilgisayarını kabloyla bağlayın, 5 GHz Wi-Fi kullanın, stant Wi-Fi'ında gerçek telefonla deneyin.
    - `test` dalındaki değişiklikleri beğenirseniz `main`'e birleştirin: `git checkout main`, `git merge test`, `git push origin main`.
 
-Çözülenler (bu oturumda): Lambda hız yığılması, `endGame` çift çağrısı, klavyenin oyunu başlatması, oda sahipliği (ikinci telefon), telefon tablo taraması maliyeti.
+Çözülenler (bu oturumda): Lambda (oyun içi güçlendirici) hız yığılması, `endGame` çift çağrısı, klavyenin oyunu başlatması, oda sahipliği (ikinci telefon), telefon tablo taraması maliyeti, MQTT joker konu izni (A01), DynamoDB doğrudan yazım (A01, skor artık `lambda/submit-score` üzerinden).
 
 ## 16. Dosya haritası
 
@@ -367,6 +376,7 @@ A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtres
 | `js/config.js` | AWS değerleri (`.gitignore`'da; Amplify build sırasında ortam değişkenlerinden üretilir) |
 | `amplify.yml` | Amplify build tarifi |
 | `customHttp.yml` | Güvenlik başlıkları (CSP vb.) — bu uygulamada Amplify Hosting'in okuduğu dosya |
+| `lambda/submit-score/index.js` | Skor yazan Lambda (kaynak; AWS'ye ESM dönüştürülüp deploy edildi) — isim/küfür + oran doğrulaması, DynamoDB `PutItem` |
 
 ## 17. Ayarlanabilir değerler
 
