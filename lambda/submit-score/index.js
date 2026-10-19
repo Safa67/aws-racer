@@ -67,14 +67,11 @@ function isProfane(name) {
 // ─── DynamoDB ──────────────────────────────────────────────────────────────
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', // Statik site, Cognito dışı gizli bilgi taşımaz; kısıtlamak istersen Amplify alan adıyla değiştir
-    'Access-Control-Allow-Methods': 'POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-};
-
+// CORS, Lambda Function URL'nin kendi CORS ayarından geliyor (AWS konsolu). Burada da
+// Access-Control-Allow-Origin eklersek iki ayrı değerle çakışır; tarayıcı birden fazla
+// Access-Control-Allow-Origin değeri olan yanıtları reddeder ("Failed to fetch").
 function respond(status, bodyObj) {
-    return { statusCode: status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) };
+    return { statusCode: status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) };
 }
 
 exports.handler = async (event) => {
