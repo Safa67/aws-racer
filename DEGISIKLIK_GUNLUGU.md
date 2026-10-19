@@ -328,7 +328,7 @@ Kod + canlı siteye (`main`, kimliksiz Cognito rolüyle, salt-okunur/koşullu yo
   - **Doğrulama (canlı sitede):** Joker konuya (`awsracer/+/tilt`, `#`) abonelik denemesi artık bağlantının kesilmesiyle sonuçlanıyor ("Connection closed"). Düz konulara (`awsracer/<oda>/state`, shadow) abonelik hâlâ çalışıyor. Tam oyun akışı (bağlan, isim gir, oyna, tuşla hareket, "oyun bitti" sinyali) gerçek MQTT ile yeniden test edildi, bozulan bir şey yok.
 - **A01, Yüksek (kapatıldı) — DynamoDB'ye doğrudan istemci yazımı.** Kimliksiz rol tabloya doğrudan `PutItem` yapabiliyordu (tarayıcı konsolundan sahte skor riski). Yeni bir Lambda ile çözüldü:
   - **`lambda/submit-score/index.js`** (repoda, CommonJS kaynak — AWS konsolu/CloudShell'e ESM olarak dönüştürülüp deploy edildi, aşağıya bakın): isim uzunluğu/küfür kontrolünü (istemciyle aynı mantık) ve bir **skor/süre oran sınırını** sunucu tarafında tekrar uygular. Sınır: `maxAllowed = 50 × (playedMs/1000) + 600` ekran puanı — gerçek oyunun sürekli üst sınırının (~36 puan/sn) üstünde, cömert bırakıldı; amaç "tarayıcı konsolundan tek satırla sahte skor yazma" saldırısını kapatmak, oyunu tam simüle etmek değil.
-  - **Altyapı:** Lambda (Node.js 24.x, Function URL, Auth: NONE, CORS açık), execution role'üne yalnızca `AwsRacerScores` tablosuna `dynamodb:PutItem` izni verildi. Tarayıcı artık bu tabloya **hiç yazma izni yok** — bu değişiklikten sonra `AwsRacerGuvenlikPolitikasi`'ndan `dynamodb:PutItem` kaldırılmalı (bkz. bölüm 15, henüz yapılmadı).
+  - **Altyapı:** Lambda (Node.js 24.x, Function URL, Auth: NONE, CORS açık), execution role'üne yalnızca `AwsRacerScores` tablosuna `dynamodb:PutItem` izni verildi. **Tarayıcının kendi rolünden (`AwsRacer_Frankfurt_Guest` → `AwsRacerGuvenlikPolitikasi` → `DynamoDBScores` ifadesi) `dynamodb:PutItem` kaldırıldı**, yalnızca `dynamodb:Scan` bırakıldı (CloudShell'den `jq` ile düzenlenip `put-role-policy` ile uygulandı). Doğrulama: tarayıcıdan doğrudan `dynamoClient.put()` denemesi artık `AccessDeniedException` ile reddediliyor; gerçek `onGameOver` → Lambda yolu hâlâ sorunsuz çalışıyor.
   - **Frontend:** `js/monitor-aws.js`'deki `onGameOver`, `dynamoClient.put()` yerine `fetch(AWS_CONFIG.scoreApiUrl, ...)` kullanıyor; `js/config.js`/`amplify.yml`'e `scoreApiUrl` eklendi, Amplify app ortam değişkenlerine `SCORE_API_URL` (Lambda Function URL) eklendi.
   - **Doğrulama (canlı Lambda'ya `curl` ile, CloudShell'den):** Geçerli istek (`deneyici1234`, 123 puan, 30 sn) → `{"ok":true}`, gerçek DynamoDB yazımı başarılı. Konsol saldırısı tarzı istek (99999 puan, 5 sn) → `{"ok":false,"reason":"score_rate_exceeded"}`. Yerel testte isim/küfür/oran/eksik alan senaryolarının hepsi doğru sebeple reddedildi.
   - **Dağıtım notu (ileride tekrar gerekirse):** Lambda konsolunun Monaco kod editörüne büyük dosya `type` ile yazdırmak güvenilir değil (otomatik parantez kapatma uzun çok satırlı metni bozuyor; tek satır ~6500+ karakterde tarayıcı araç çağrısı zaman aşımına uğruyor). Güvenilir yöntem: dosyayı **CloudShell'e dosya yükleme özelliğiyle** (Actions → Upload file, ya da doğrudan dosya `<input>` elemanına) yükleyip `aws lambda update-function-code --zip-file fileb://...` ile deploy etmek. (Bir ara denemede heredoc'un terminalde doğru submit olmaması "File name too long" hatasına ve 0 bayt'lık bir artık dosyaya yol açtı; dosya yüklemeden önce `rm -f` ile temizlendi.)
@@ -343,13 +343,12 @@ A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtres
 
 Öncelik sırasıyla:
 
-1. **Tarayıcı rolünden `dynamodb:PutItem` kaldırılmalı.** DynamoDB yazımı artık Lambda üzerinden (bölüm 14), tarayıcının bunu doğrudan yapmasına gerek kalmadı. `AwsRacerGuvenlikPolitikasi`'ndaki `DynamoDBScores` ifadesinden `PutItem` çıkarılıp yalnızca `Scan` bırakılmalı (bu son sıkılaştırma adımı henüz yapılmadı; önce `test` dalındaki yeni frontend'in Lambda'yı kullandığı canlı sitede doğrulanmalı, sonra yapılmalı — sırayı bozarsa skor kaydı tamamen durur).
-2. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
-3. **Dış bağımlılıklar:** mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
-4. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
-5. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
-6. **Rate limiting (A04):** Lambda Function URL ve `dynamodb:Scan`'e karşı istek sınırlaması yok (bölüm 14).
-7. **Etkinlik öncesi kontrol listesi:**
+1. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
+2. **Dış bağımlılıklar:** mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
+3. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
+4. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
+5. **Rate limiting (A04):** Lambda Function URL ve `dynamodb:Scan`'e karşı istek sınırlaması yok (bölüm 14).
+6. **Etkinlik öncesi kontrol listesi:**
    - Oyun hızı test butonları artık varsayılan olarak gizli (yalnızca `Monitor.html?test=1` ile görünür). Ses ve müzik düğmeleri her zaman görünür.
    - DynamoDB'deki test/eski kayıtları temizleyin (skorlar yükseldi).
    - Monitör bilgisayarında sayfaya bir kez tıklayarak sesi açın (ya da Chrome'u autoplay bayrağıyla başlatın).
