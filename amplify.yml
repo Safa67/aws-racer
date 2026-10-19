@@ -18,21 +18,6 @@ frontend:
     baseDirectory: /
     files:
       - '**/*'
-customHeaders:
-  # OWASP Top 10 incelemesinden (A05: Security Misconfiguration): CloudFront hiçbir güvenlik
-  # başlığı göndermiyordu. connect-src/worker-src, gerçek AWS Cognito + IoT Core (MQTT/WSS) +
-  # DynamoDB trafiğiyle ve aws-sdk/mqtt.js'in kullandığı Web Worker ile test edilerek doğrulandı.
-  - pattern: '**/*'
-    headers:
-      - key: 'Content-Security-Policy'
-        value: "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.amazonaws.com wss://*.amazonaws.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
-      - key: 'X-Frame-Options'
-        value: 'DENY'
-      - key: 'X-Content-Type-Options'
-        value: 'nosniff'
-      - key: 'Referrer-Policy'
-        value: 'strict-origin-when-cross-origin'
-      - key: 'Permissions-Policy'
-        value: 'geolocation=(), microphone=(), camera=()'
-      - key: 'Strict-Transport-Security'
-        value: 'max-age=31536000; includeSubDomains'
+# Güvenlik başlıkları (CSP, X-Frame-Options vb.) burada DEĞİL, repo kökündeki customHttp.yml
+# dosyasında tanımlı. Bu uygulamada Amplify Hosting o dosyayı okuyor; buradaki customHeaders
+# anahtarı denendi ve etkisiz çıktı (Hosting > Custom headers and cache ekranı kanıtladı).
