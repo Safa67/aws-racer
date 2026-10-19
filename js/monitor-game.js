@@ -1167,3 +1167,6 @@ setTimeScale(timeScale);
 if (new URLSearchParams(window.location.search).has('test')) {
     document.getElementById('speedGroup').style.display = 'contents';
 }
+
+// "Başa Dön" düğmesi: satır içi onclick CSP'nin script-src'si ile çalışmaz, bu yüzden addEventListener.
+document.getElementById('resetBtn').addEventListener('click', resetGame);
