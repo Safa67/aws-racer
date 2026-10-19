@@ -298,3 +298,25 @@ body.dark-theme #speedBox button:not(.active) {
     40%  { transform: scale(1.4); }
     100% { transform: scale(1); }
 }
+
+/* Ses kilitliyken (tarayıcı jest olmadan ses çalmaz) ekranın üstünde görünen uyarı; tıklamayı engellemez */
+.sound-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: #FF9900;
+    color: #232F3E;
+    font-weight: bold;
+    font-size: 18px;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    animation: soundHintPulse 1.6s ease-in-out infinite;
+}
+@keyframes soundHintPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}

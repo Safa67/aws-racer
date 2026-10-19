@@ -154,7 +154,31 @@ const sfx = (() => {
         btn.classList.toggle('active', soundOn && actx && actx.state === 'running');
     }
 
-    /** İlk kullanıcı etkileşiminde sesi açar (tarayıcılar kullanıcı etkileşimi olmadan ses çalmaz). */
+    // Ses kilitliyken ekranda görünen uyarı (css/monitor.css .sound-hint). Tıklamayı engellemez.
+    let hintEl = null;
+    function updateHint() {
+        if (!hintEl) {
+            hintEl = document.createElement('div');
+            hintEl.className   = 'sound-hint';
+            hintEl.textContent = '🔊 Ses kapalı: sesi açmak için ekrana bir kez tıkla';
+            document.body.appendChild(hintEl);
+        }
+        hintEl.style.display = (soundOn && !(actx && actx.state === 'running')) ? 'block' : 'none';
+    }
+
+    /** Açılış onayı: kilit ilk kez açılınca kısa bir ses çalar (ses çalıştığını duyurur). */
+    let chimed = false;
+    function onStateChange() {
+        updateButton();
+        updateHint();
+        if (!chimed && running()) { chimed = true; tone(880, 0.12, 'sine', 0.3); tone(1320, 0.16, 'sine', 0.3, null, 0.1); }
+    }
+
+    /**
+     * AudioContext'i oluşturur ve çalıştırmayı dener. Tarayıcılar kullanıcı etkileşimi olmadan ses çalmaz;
+     * ancak Chrome `--autoplay-policy=no-user-gesture-required` ile ya da site daha önce yeterince etkileşim
+     * gördüyse jestsiz de çalışır. Bu yüzden sayfa açılır açılmaz denenir (önceden yalnızca ilk tıklamada denenirdi).
+     */
     function unlock() {
         if (!actx) {
             try {
@@ -162,13 +186,17 @@ const sfx = (() => {
                 master = actx.createGain();
                 master.gain.value = 0.25;
                 master.connect(actx.destination);
+                actx.onstatechange = onStateChange;
             } catch (e) { actx = null; }
         }
-        if (actx && actx.state === 'suspended') actx.resume().then(updateButton).catch(() => {});
-        updateButton();
+        if (actx && actx.state !== 'running') actx.resume().then(onStateChange).catch(() => {});
+        onStateChange();
     }
 
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock));
+    // Jest gelmeden de dene: izin varsa ses ilk oyundan önce açılır. Kilitliyken 2 sn'de bir sessizce tekrar dener.
+    window.addEventListener('load', unlock);
+    setInterval(() => { if (!actx || actx.state !== 'running') unlock(); }, 2000);
 
     // ── Arka plan müziği: WebAudio ile üretilen arpej + bas, hız arttıkça tempo artar ──
     // Dosya yok, indirme yok, AWS maliyeti yok. Kısa bir zamanlayıcı notaları ileriye dönük planlar.
@@ -221,6 +249,7 @@ const sfx = (() => {
             btn.blur();
             unlock();
             updateButton();
+            updateHint();
         });
     });
 
