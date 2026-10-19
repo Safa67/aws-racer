@@ -8,32 +8,14 @@
     <link rel="stylesheet" href="css/monitor.css">
 
     <!-- AWS SDK (IoT + DynamoDB) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1408.0/aws-sdk.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1693.0/aws-sdk.min.js" integrity="sha512-edTkChixbTku8Vi8VYQc9DdrDvU9jxyjjjQ8+Ed9iSO/1t2amx/6+frTHhpnRzVxikc9xwwriJDCXeaSAiA9XQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- QR Kod Kütüphanesi -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
-    <!-- Tema Değiştirme Butonu (Sol Alt) -->
-    <button id="themeToggleBtn" onclick="toggleTheme()" style="position:absolute; bottom:20px; left:20px; z-index:9999; padding:8px 16px; background:#232F3E; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🌙 Dark Mode</button>
-
-    <script>
-        // Tema değiştirici
-        function toggleTheme() {
-            document.body.classList.toggle('dark-theme');
-            let isDark = document.body.classList.contains('dark-theme');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            document.getElementById('themeToggleBtn').innerText = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
-            document.getElementById('themeToggleBtn').style.background = isDark ? '#FFFFFF' : '#232F3E';
-            document.getElementById('themeToggleBtn').style.color = isDark ? '#232F3E' : 'white';
-        }
-
-        // Sayfa yüklendiğinde eski tercihe bak
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.classList.add('dark-theme');
-            document.getElementById('themeToggleBtn').innerText = '☀️ Light Mode';
-            document.getElementById('themeToggleBtn').style.background = '#FFFFFF';
-            document.getElementById('themeToggleBtn').style.color = '#232F3E';
-        }
-    </script>
+    <!-- Tema Değiştirme Butonu (Sol Alt). Olay dinleyici ve "eski tercihe bak" mantığı js/theme.js'de
+         (satır içi script/olay işleyicisi CSP'deki script-src ile çalışmaz). -->
+    <button id="themeToggleBtn" data-dark-label="🌙 Dark Mode" data-light-label="☀️ Light Mode" style="position:absolute; bottom:20px; left:20px; z-index:9999; padding:8px 16px; background:#232F3E; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🌙 Dark Mode</button>
+    <script src="js/theme.js"></script>
 </head>
 <body>
 
@@ -122,7 +104,7 @@
     <script src="js/monitor-game.js"></script>
     <script src="js/monitor-demo.js"></script>
     <script src="js/monitor-qr.js"></script>
-    <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
+    <script src="https://unpkg.com/mqtt@5.16.1/dist/mqtt.min.js" integrity="sha384-ilRYg/zm2XqUafLvBoGVk40UfNRnvUkYMy+e/JPo4YgsFR6X9Q3jYEkqFQXquX4r" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/iot-sign.js"></script>
     <script src="js/game-rules.js"></script>
     <script src="js/monitor-mqtt.js"></script>

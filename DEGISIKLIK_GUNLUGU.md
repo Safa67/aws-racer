@@ -308,7 +308,27 @@ Bu bilgisayardan TCP bağlantı süresi (6 deneme, en iyi → en kötü, ms): Fr
 ### En büyük gecikme kazancı fikri (uygulanmadı)
 Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri kanalı (`ordered:false, maxRetransmits:0`). Eşleşme mesajları mevcut IoT MQTT hattından, STUN için `stun.kinesisvideo.<bölge>.amazonaws.com:443`. Doğrudan bağlantı kurulamazsa (istemci yalıtımı, mobil veri) mevcut MQTT yolu yedek kalır. Kinesis Video Streams JS SDK'sı veri kanalı API'si belgelemiyor, o yüzden doğrudan tarayıcının `RTCPeerConnection`'ı kullanılmalı.
 
-## 14. Kalan işler ve bilinen riskler
+## 14. OWASP Top 10 incelemesi ve düzeltmeler
+
+Kod + canlı siteye (`main`, kimliksiz Cognito rolüyle, salt-okunur/koşullu yoklamalar; hiçbir yazma gerçek veriye dokunmadı) karşı OWASP Top 10 (2021) taraması yapıldı. 7 bulgudan **4'ü kod üzerinden düzeltildi**, 3'ü AWS konsolu gerektirir (aşağıda).
+
+### Kod üzerinden düzeltilenler
+
+- **A06, Yüksek — `aws-sdk` v2 desteği sona ermiş:** 2.1408.0 → 2.1693.0. AWS'nin kendi duyurusu "v2 has reached end-of-support"; `npm audit` 2 orta seviye zafiyet işaretliyordu (`uuid` buffer bounds check, bölge doğrulama). Gerçek Cognito/IoT/DynamoDB'ye karşı test edildi.
+- **A06, Düşük — `mqtt.js` ve `qrcodejs` eski sürümler:** `mqtt` 4.3.8 → 5.16.1 (4.x zaten en güncel yama, 5.x'e geçiş gerçek IoT bağlantısı + oyun akışıyla test edildi: bağlantı, eğim/tuş mesajları, "oyun bitti" sinyali, bot regresyonu hep 5.16.1 ile doğrulandı). `qrcodejs` zaten en güncel sürümde (1.0.0), değişmedi.
+- **A02/A08 — SRI (Subresource Integrity) yoktu:** `aws-sdk`, `mqtt.js`, `qrcodejs` script etiketlerine `integrity` + `crossorigin="anonymous"` + `referrerpolicy="no-referrer"` eklendi. CDN ele geçirilirse değişmiş dosya artık çalışmaz.
+- **A05, Orta — CloudFront güvenlik başlıkları yoktu:** `amplify.yml`'e `customHeaders` eklendi: `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security`. CSP'nin `script-src`'i satır içi script çalıştırmaz; bu yüzden tema değiştirici (`onclick`, satır içi `<script>`) `js/theme.js` dosyasına taşındı (iki sayfa da kullanıyor). `connect-src`/`worker-src` gerçek Cognito + IoT Core (WSS) + DynamoDB trafiğiyle ve aws-sdk/mqtt.js'in kullandığı Web Worker ile doğrulandı (yerel sunucuda aynı başlıkları gönderen bir test sunucusuyla: bağlantı, tema düğmesi, oyun, tek dokunuşla tuş, "oyun bitti" sinyali, çarpma sahnesi — hepsi CSP altında hatasız). Amplify'ın `customHeaders`'ı dağıtımda otomatik uygulanır, konsolda ek adım gerekmez.
+
+### AWS konsolu gerektiren, kod üzerinden çözülemeyenler
+
+- **A01, Kritik — MQTT konularında aşırı geniş izin:** Kimliksiz Cognito rolü `awsracer/+/tilt`, `awsracer/#` gibi joker konulara abone olabiliyor (test: denenen 7 konunun 7'si de izin verildi). Herhangi biri tüm standlardaki aktif odaları, oyuncu adlarını ve cihaz kodlarını dinleyebilir; oda kilidi (`lockedDeviceId`) yalnızca istemci tarafında, MQTT katmanında bir ACL yok. **Düzeltme AWS IoT Core politikasında** (konuları `${iot:Connection.Thing.ThingName}` ya da Cognito kimliğine göre daraltmak), kod değişikliği değildir.
+- **A01, Yüksek — DynamoDB'ye doğrudan istemci yazımı:** Kimliksiz rol tabloya `PutItem` yapabiliyor (sahte skor riski, bölüm 14'te zaten not edilmişti). Kalıcı çözüm bir Lambda/API Gateway arkasına almak — **yeni AWS kaynağı ve karar gerektirir**, kullanıcıyla konuşulmadan kurulmadı.
+- **A04, Orta — Rate limiting yok:** Kimliksiz kimlikle sınırsız `PutItem`/`scan` atılabilir (maliyet/DoS riski). **AWS IoT policy/throttling ayarı**, konsoldan yapılır.
+
+### Etkilenmeyen/düşük öncelikli maddeler
+A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtresi). A07 (kimlik doğrulama) tasarım gereği kimliksiz. A09 (loglama) ve A10 (SSRF) bu projede kapsam dışı/uygulanamaz.
+
+## 15. Kalan işler ve bilinen riskler
 
 Öncelik sırasıyla:
 
@@ -326,7 +346,7 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 
 Çözülenler (bu oturumda): Lambda hız yığılması, `endGame` çift çağrısı, klavyenin oyunu başlatması, oda sahipliği (ikinci telefon), telefon tablo taraması maliyeti.
 
-## 15. Dosya haritası
+## 16. Dosya haritası
 
 | Dosya | Görev |
 |---|---|
@@ -339,13 +359,14 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 | `kumanda.html`, `js/kumanda-ui.js` | Telefon arayüzü, isim/hak kontrolü, öğretici, eğim açısı, yön tuşları, hassasiyet, "oda dolu" ekranı |
 | `js/kumanda-aws.js` | Telefon tarafı AWS bağlantısı, doğrudan MQTT, `join` mesajı, gönderme, cihaz kodu |
 | `js/iot-sign.js` | SigV4 imzalı MQTT WebSocket URL üretici (iki sayfa paylaşır) |
+| `js/theme.js` | Açık/koyu tema değiştirici (iki sayfa paylaşır; CSP için satır içi scriptten taşındı) |
 | `js/game-rules.js` | `MAX_ATTEMPTS`, `TESTER_NAMES` (iki sayfa paylaşır) |
 | `index.html` | Kök adresi `Monitor.html`'e yönlendirir (`test` dalında) |
 | `css/monitor.css`, `css/kumanda.css` | Stiller |
 | `js/config.js` | AWS değerleri (`.gitignore`'da; Amplify build sırasında ortam değişkenlerinden üretilir) |
 | `amplify.yml` | Amplify build tarifi |
 
-## 16. Ayarlanabilir değerler
+## 17. Ayarlanabilir değerler
 
 | Değer | Yer | Varsayılan |
 |---|---|---|
