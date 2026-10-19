@@ -111,6 +111,8 @@ async function connectPhoneMqtt() {
     phoneMqtt = client;
 
     client.on('connect', () => {
+        if (lastHbAt) lastHbAt = Date.now(); // yeniden bağlandık: bekçiye taze süre ver
+        staleIgnoreUntil = Date.now() + 2500; // monitörün eski "eğim yok" yaşı yeni bağlantıyı yenileme döngüsüne sokmasın
         client.subscribe(`awsracer/${ODA_ID}/state`, { qos: 0 });
         // Odaya katıldığımızı bildir: oda doluysa monitör hemen "oda dolu" cevabı verir
         client.publish(`awsracer/${ODA_ID}/tilt`, JSON.stringify({ join: true, deviceId: DEVICE_ID }), { qos: 0 });
@@ -119,7 +121,13 @@ async function connectPhoneMqtt() {
     client.on('message', (topic, message) => {
         try {
             const data = JSON.parse(message.toString());
-            if (data.busy && data.deviceId === DEVICE_ID) {
+            if (data.hb) {
+                // Monitörün canlılık sinyali (yalnızca odanın sahibine anlamlı)
+                if (data.owner !== DEVICE_ID) return;
+                lastHbAt = Date.now();
+                // Monitör son eğimi çok önce almış: bu telefonun gönderim yönü kopmuş, bağlantıyı yenile
+                if (data.age > HB_STALE_AGE_MS && Date.now() > staleIgnoreUntil) forceMqttReconnect('monitör eğim almıyor (' + data.age + ' ms)');
+            } else if (data.busy && data.deviceId === DEVICE_ID) {
                 if (onRoomBusy) onRoomBusy();
             } else if (data.gameOver && (!data.owner || data.owner === DEVICE_ID) && onGameOverSignal) {
                 onGameOverSignal(); // oyun bitti ekranı yalnızca odanın sahibine
@@ -135,6 +143,30 @@ async function connectPhoneMqtt() {
         setTimeout(connectPhoneMqtt, 2000);
     });
 }
+
+// ─── Bağlantı Bekçisi (yarım kopmuş WebSocket) ────────────────────────────────
+// Mobil ağda WebSocket kopsa da tarayıcı bunu ~45 sn fark etmeyebilir ('close' gelmez); o sürede eğim kaybolurdu.
+// Monitör oyun sırasında her saniye canlılık sinyali yollar. Sinyal gelmezse ya da monitör "eğim almıyorum"
+// derse bağlantı yenilenir; yenilenirken eğim Shadow (REST) yedeğiyle gitmeye devam eder.
+const HB_TIMEOUT_MS   = 3500;  // Bu kadar süre sinyal gelmezse bağlantı ölü sayılır
+const HB_STALE_AGE_MS = 3000;  // Monitörün son eğimi bu kadar önce aldığını bildirmesi: gönderim yönü ölü
+let lastHbAt = 0;              // 0: henüz sinyal gelmedi (oyun başlamadı), bekçi kapalı
+let staleIgnoreUntil = 0;      // Bu zamana kadar monitörün "eğim yok" yaşı yok sayılır (yeni bağlantıya süre tanır)
+
+function forceMqttReconnect(reason) {
+    if (!phoneMqtt) return;
+    console.warn('Telefon MQTT yenileniyor:', reason);
+    lastHbAt = Date.now();     // yenileme sırasında art arda tetiklenmesin
+    phoneMqtt.end(true);       // 'close' olayı taze imzayla yeniden bağlanmayı başlatır
+}
+
+setInterval(() => {
+    if (!lastHbAt || controlRejected) return;
+    if (typeof gameOverShown !== 'undefined' && gameOverShown) return;
+    if (phoneMqtt && phoneMqtt.connected && Date.now() - lastHbAt > HB_TIMEOUT_MS) {
+        forceMqttReconnect('monitörden canlılık sinyali gelmiyor');
+    }
+}, 1000);
 
 // ─── IoT Shadow Veri Gönderme ─────────────────────────────────────────────────
 
@@ -228,16 +260,16 @@ function fetchLeaderboard(isPreview, myName) {
     scanAll({ TableName: AWS_CONFIG.dynamoTable }, function (err, items) {
         if (err) { console.error('Leaderboard hatası:', err); return; }
 
-        // Giriş sırasında benzersiz isim zorunluluğu uygulanıyor (kumanda-ui.js).
-        // Bu gruplama sadece beklenmedik çifte kayıtlara karşı güvenlik önlemi olarak tutulur.
-        const bestByName = {};
+        // Bir yarışmacı = bir cihaz (aynı ismi kullanan farklı cihazlar ayrı satırdır)
+        const bestByPlayer = {};
         items.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
-            if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
-                bestByName[item.PlayerName] = item.Score;
+            const key = playerKey(item);
+            if (!bestByPlayer[key] || item.Score > bestByPlayer[key][1]) {
+                bestByPlayer[key] = [item.PlayerName, item.Score, key, deviceTag(item)];
             }
         });
 
-        const top10 = Object.entries(bestByName)
+        const top10 = Object.values(bestByPlayer)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10);
 
@@ -249,11 +281,11 @@ function fetchLeaderboard(isPreview, myName) {
         } else {
             // Oyun içi: tam liste (kendi satırı vurgulanır)
             let htmlStr = '';
-            top10.forEach(([name, score], idx) => {
-                const isMe = name === myName;
-                htmlStr += `<li class="${isMe ? 'me' : ''}">
+            top10.forEach(([name, score, key, tag], idx) => {
+                const isMe = key === 'd:' + DEVICE_ID;
+                htmlStr += `<li class="${isMe ? 'me' : ''}"${tag ? ' data-tag="1" style="cursor:pointer;"' : ''}>
                     <span class="rank">${idx + 1}.</span>
-                    <span style="flex:1; padding: 0 5px;">${isMe ? '⭐ ' : ''}${escapeHtml(name)}</span>
+                    <span style="flex:1; padding: 0 5px;">${isMe ? '⭐ ' : ''}${escapeHtml(name)}${deviceTagHtml(tag)}</span>
                     <span class="player-score">${score}</span>
                 </li>`;
             });

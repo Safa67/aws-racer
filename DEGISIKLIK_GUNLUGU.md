@@ -405,7 +405,7 @@ A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtres
 | Dalga zamanları | `WAVE_FIRST_AT` / `WAVE_GAP_MIN` / `WAVE_GAP_MAX` / `LOGO_RAIN_AT` | 20 / 22 / 32 / 60 sn |
 | Yağmur/duvar/logo ayarları | `RAIN_*`, `WALL_*`, `LOGO_*` | bkz. dosya |
 | Geçilebilirlik güvenliği | `REACH_FACTOR` | 0.45 |
-| Oyun hakkı | `js/game-rules.js` `MAX_ATTEMPTS` | 3 |
+| Oyun hakkı | (kaldırıldı) | Sınırsız. İsim benzersizliği ve "aynı telefon aynı isim" kuralı da kaldırıldı; skor tablolarında yarışmacı `DeviceId` ile ayrılır (`playerKey` in `js/game-rules.js`) |
 | Deneme isimleri | `js/game-rules.js` `TESTER_NAMES` | `['deneyici1234']` |
 | Monitör lerp | `js/monitor-game.js` | 0.25 (60 fps'te) |
 | Telefon EMA | `js/kumanda-ui.js` `SENSOR_SMOOTH` | 0.25 (60 olay/sn'de) |

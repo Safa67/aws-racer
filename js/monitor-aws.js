@@ -81,21 +81,23 @@ function todayKey() {
 
 /** Kayıt listesinden isim başına en iyi skoru bulup ilk 10'u <li> olarak yazar. */
 function renderBoard(listId, items, emptyText) {
-    // Aynı isimde birden fazla kayıt olabilir (oyuncular 3 hakka kadar oynar): en yüksek skor sayılır.
-    const bestByName = {};
+    // Bir yarışmacının (cihazın) birden fazla kaydı olabilir: en yüksek skor sayılır.
+    // Aynı ismi kullanan farklı cihazlar ayrı satırlardır.
+    const bestByPlayer = {};
     items.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
-        if (!bestByName[item.PlayerName] || item.Score > bestByName[item.PlayerName]) {
-            bestByName[item.PlayerName] = item.Score;
+        const key = playerKey(item);
+        if (!bestByPlayer[key] || item.Score > bestByPlayer[key][1]) {
+            bestByPlayer[key] = [item.PlayerName, item.Score, deviceTag(item)];
         }
     });
 
-    const top10 = Object.entries(bestByName)
+    const top10 = Object.values(bestByPlayer)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
 
     let htmlStr = '';
-    top10.forEach(([name, score], idx) => {
-        htmlStr += `<li><b>${idx + 1}.</b> ${escapeHtml(name)} <span style="float:right; color:#FF9900; font-weight:bold;">${score}</span></li>`;
+    top10.forEach(([name, score, tag], idx) => {
+        htmlStr += `<li${tag ? ' data-tag="1" style="cursor:pointer;"' : ''}><b>${idx + 1}.</b> ${escapeHtml(name)}${deviceTagHtml(tag)} <span style="float:right; color:#FF9900; font-weight:bold;">${score}</span></li>`;
     });
 
     document.getElementById(listId).innerHTML = htmlStr || `<li>${emptyText}</li>`;
@@ -111,7 +113,8 @@ let dailyBests = [];
  * @returns {{rank:number, total:number}}
  */
 function liveRankFor(screenScore) {
-    const others = dailyBests.filter(b => b.name !== activePlayerName);
+    const myKey  = activeDeviceId ? 'd:' + activeDeviceId : 'n:' + activePlayerName;
+    const others = dailyBests.filter(b => b.key !== myKey);
     return {
         rank:  1 + others.filter(b => b.score > screenScore).length,
         total: others.length + 1,
@@ -139,9 +142,10 @@ function fetchLeaderboard() {
         // Canlı sıra için bugünün en iyi skorları (deneme hesapları sayılmaz)
         const best = {};
         todays.filter(item => !isTesterName(item.PlayerName) && !isProfane(item.PlayerName)).forEach(item => {
-            if (!(item.PlayerName in best) || item.Score > best[item.PlayerName]) best[item.PlayerName] = item.Score;
+            const key = playerKey(item);
+            if (!(key in best) || item.Score > best[key]) best[key] = item.Score;
         });
-        dailyBests = Object.keys(best).map(name => ({ name: name, score: best[name] }));
+        dailyBests = Object.keys(best).map(key => ({ key: key, score: best[key] }));
     });
 }
 
@@ -191,6 +195,8 @@ function onGameOver(finalScore) {
 function onGameReset() {
     lockedDeviceId = null;   // yeni oda, kilitsiz başlar
     lastBusyNotify = {};
+    lastPhoneSentAt = 0;
+    lastTiltAt      = 0;
     ODA_ID = 'awsracer-' + Math.floor(Math.random() * 1000000);
     renderQR();
     subscribeToRoom(ODA_ID); // monitor-mqtt.js — yeni odanın topic'ine geç

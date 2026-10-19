@@ -4,11 +4,32 @@
  * Not: Bu dosya herkese açık sunulur, buradaki değerler gizli değildir.
  */
 
-// Bir cihazın etkinlikteki toplam oyun hakkı
-const MAX_ATTEMPTS = 3;
+// Oyun hakkı sınırı ve isim benzersizliği yok: yarışmacıyı cihaz kodu (DeviceId) ayırt eder.
+// Skor tablolarında bir yarışmacı = bir cihaz. Cihaz kodu olmayan eski kayıtlar isim bazında gruplanır.
+function playerKey(item) {
+    return item.DeviceId ? 'd:' + item.DeviceId : 'n:' + item.PlayerName;
+}
+
+// Cihaz kodunun son 3 hanesi: aynı isimli yarışmacıları ayırt etmek için. Tabloda gizlidir, satıra tıklayınca görünür.
+function deviceTag(item) {
+    return item.DeviceId ? String(item.DeviceId).slice(-3) : '';
+}
+
+/** Skor satırının sonuna eklenecek gizli etiket (HTML). Etiketi olmayan eski kayıtlarda boş döner. */
+function deviceTagHtml(tag) {
+    return tag
+        ? ` <span class="dev-tag" style="display:none; opacity:.6; font-size:.8em; font-weight:normal;">#${tag.replace(/[^0-9a-zA-Z]/g, '')}</span>`
+        : '';
+}
+
+// Tablodaki bir satıra tıklanınca cihaz etiketini göster/gizle (üç skor listesi için ortak)
+document.addEventListener('click', (e) => {
+    const li  = e.target.closest && e.target.closest('li[data-tag]');
+    const tag = li && li.querySelector('.dev-tag');
+    if (tag) tag.style.display = tag.style.display === 'none' ? 'inline' : 'none';
+});
 
 // Sınırsız oynayabilen deneme/geliştirici isimleri.
-// - Hak sınırı ve "isim başkasına ait" kontrolü uygulanmaz (her cihazdan kullanılabilir).
 // - Skorları kaydedilir ama skor tablolarında gösterilmez (ödül sıralamasını bozmasın).
 const TESTER_NAMES = ['deneyici1234'];
 

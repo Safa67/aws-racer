@@ -2,7 +2,7 @@
  * kumanda-ui.js — Kumanda Arayüzü ve Sensör Yönetimi
  *
  * Şunları yönetir:
- *   1. İsim doğrulama (DynamoDB'de aynı isim var mı kontrolü)
+ *   1. İsim doğrulama (uzunluk, küfür filtresi)
  *   2. Giriş → Oyun ekranı geçişi
  *   3. Gyroscope sensörü okuma ve tilt çubuğu güncelleme
  *   4. Oyun sırasında leaderboard periyodik yenileme
@@ -11,7 +11,6 @@
  */
 
 let PLAYER_NAME      = '';
-let ATTEMPTS_LEFT    = MAX_ATTEMPTS; // Bu oyun dahil kalan hak
 let leaderInterval   = null; // Oyun içi leaderboard yenileme zamanlayıcısı
 let smoothedGamma    = 0;    // Filtrelenmiş eğim verisi
 const SENSOR_SMOOTH  = 0.25; // EMA katsayısı: 60 olay/sn'deki değer (0.1: çok yumuşak/yavaş, 0.8: sert/hızlı)
@@ -28,7 +27,6 @@ try {
 document.getElementById('connectBtn').addEventListener('click', () => {
     const inputName = document.getElementById('playerNameInput').value.trim();
     const nameError = document.getElementById('nameError');
-    const connectBtn = document.getElementById('connectBtn');
     nameError.innerText = '';
 
     // Temel doğrulama
@@ -37,69 +35,11 @@ document.getElementById('connectBtn').addEventListener('click', () => {
     if (isProfane(inputName))  { nameError.style.color = '#D13212'; nameError.innerText = '❌ Bu isim uygun değil, lütfen başka bir isim yaz.'; return; }
     if (!dynamoClient)         { nameError.innerText = '⏳ AWS bağlantısı bekleniyor...'; return; }
 
-    // Butonu devre dışı bırak (çift tıklamayı önle)
-    connectBtn.disabled = true;
-    nameError.style.color = '#FF9900';
-    nameError.innerText = '🔍 İsim kontrol ediliyor...';
-
-    // Deneme/geliştirici ismi: hak ve isim kontrolü yok, her cihazdan sınırsız oynanır
-    if (isTesterName(inputName)) {
-        ATTEMPTS_LEFT = Infinity;
-        try { localStorage.setItem('awsracer_name', inputName); } catch (e) {}
-        connectBtn.disabled = false;
-        nameError.style.color = '#00FF00';
-        nameError.innerText = '✅ Deneme hesabı: sınırsız hak — Bağlanılıyor...';
-        setTimeout(() => startPlaying(inputName), 400);
-        return;
-    }
-
-    // Bu isim başka bir cihaza mı ait? Bu cihaz kaç kez oynadı? (tek taramada ikisi birden)
-    scanAll({
-        TableName: AWS_CONFIG.dynamoTable,
-        FilterExpression: 'PlayerName = :n OR DeviceId = :d',
-        ExpressionAttributeValues: { ':n': inputName, ':d': DEVICE_ID }
-    }, function (err, items) {
-        connectBtn.disabled = false;
-
-        if (err) {
-            nameError.style.color = '#D13212';
-            nameError.innerText = '❌ Sunucu hatası, tekrar dene!';
-            console.error('İsim kontrolü hatası:', err);
-            return;
-        }
-
-        const mine   = items.filter(i => i.DeviceId === DEVICE_ID);
-        const others = items.filter(i => i.DeviceId !== DEVICE_ID && i.PlayerName === inputName);
-
-        // İsim başka bir cihaza ait (veya eski, cihaz kodu olmayan bir kayıtta var)
-        if (others.length > 0) {
-            nameError.style.color = '#D13212';
-            nameError.innerText = `❌ "${inputName}" ismi başkası tarafından kullanılıyor! Lütfen farklı bir isim girin.`;
-            document.getElementById('playerNameInput').focus();
-            return;
-        }
-
-        // Bu cihaz daha önce başka bir isimle oynadıysa aynı ismi kullanmak zorunda
-        if (mine.length > 0 && mine[0].PlayerName !== inputName) {
-            nameError.style.color = '#D13212';
-            nameError.innerText = `❌ Bu telefonla daha önce "${mine[0].PlayerName}" ismiyle oynadın. Aynı ismi kullan.`;
-            document.getElementById('playerNameInput').value = mine[0].PlayerName;
-            return;
-        }
-
-        if (mine.length >= MAX_ATTEMPTS) {
-            nameError.style.color = '#D13212';
-            nameError.innerText = `❌ ${MAX_ATTEMPTS} oyun hakkını da kullandın. Oynadığın için teşekkürler!`;
-            return;
-        }
-
-        ATTEMPTS_LEFT = MAX_ATTEMPTS - mine.length;
-        try { localStorage.setItem('awsracer_name', inputName); } catch (e) {}
-
-        nameError.style.color = '#00FF00';
-        nameError.innerText = `✅ Kalan hakkın: ${ATTEMPTS_LEFT}/${MAX_ATTEMPTS} — Bağlanılıyor...`;
-        setTimeout(() => startPlaying(inputName), 400);
-    });
+    // İsim benzersiz olmak zorunda değil, oyun sınırı yok: yarışmacıları cihaz kodu (DeviceId) ayırt eder
+    try { localStorage.setItem('awsracer_name', inputName); } catch (e) {}
+    nameError.style.color = '#00FF00';
+    nameError.innerText = '✅ Bağlanılıyor...';
+    setTimeout(() => startPlaying(inputName), 400);
 });
 
 // ─── Oyun Bitti Ekranı ────────────────────────────────────────────────────────
@@ -141,11 +81,7 @@ function showGameOver() {
         <div style="text-align:center; padding: 40px 20px;">
             <h1 style="color:#D13212; font-size:40px; margin-bottom:20px;">OYUN BİTTİ! 🚀</h1>
             <p style="font-size:20px; color:#545B64; margin-bottom: 20px;">Oynadığın için teşekkürler!</p>
-            <p style="font-size:16px; color:#545B64; margin-bottom: 20px;">${ATTEMPTS_LEFT === Infinity
-                ? 'Deneme hesabı: sınırsız hak — tekrar denemek için QR\'ı yeniden okut.'
-                : ATTEMPTS_LEFT > 1
-                ? 'Kalan hakkın: <b>' + (ATTEMPTS_LEFT - 1) + '/' + MAX_ATTEMPTS + '</b> — tekrar denemek için ekrandaki QR\'ı yeniden okut.'
-                : 'Tüm oyun haklarını kullandın.'}</p>
+            <p style="font-size:16px; color:#545B64; margin-bottom: 20px;">Tekrar denemek için ekrandaki QR'ı yeniden okut.</p>
             <p style="font-size:16px; color:#545B64;">Bu sekme diğer oyunculara yer açmak için<br><b>3 saniye içinde</b> otomatik kapatılacaktır.</p>
         </div>
     `;

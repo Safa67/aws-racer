@@ -25,7 +25,15 @@ let activePlayerName = 'Anonim';
 // yok sayılır ve onlara "oda dolu" bilgisi gönderilir (QR'ı aynı anda okutan iki kişi birbirini bozmasın).
 let lockedDeviceId   = null;
 let lastBusyNotify   = {};   // deviceId → son bildirim zamanı (ms), mesaj yağmurunu önler
-let activeDeviceId   = null; // Telefonun rastgele cihaz kodu (3 hak kuralı için skorla birlikte saklanır)
+let activeDeviceId   = null; // Telefonun rastgele cihaz kodu (yarışmacıyı ayırt etmek için skorla birlikte saklanır)
+
+// Bağlantı kopması koruması: oyun sırasında eğim mesajı bu süreden uzun gelmezse hareket durdurulur
+// (telefon 300 ms'de bir tekrar gönderir; son değer süresiz tutulursa bulut tek yöne takılı kalırdı).
+const TILT_STALE_MS   = 2000;
+const HB_INTERVAL_MS  = 1000; // Telefona canlılık sinyali: telefon yarım kopmuş bağlantıyı bununla fark eder
+let lastTiltAt        = 0;    // Son kabul edilen eğim mesajının zamanı (monitör saati)
+let lastPhoneSentAt   = 0;    // Son kabul edilen eğim mesajının telefon damgası (sırasız gelenleri atmak için)
+let lastHbAt          = 0;
 
 // ─── MQTT Bağlantı Yöneticisi ─────────────────────────────────────────────────
 
@@ -118,6 +126,24 @@ function subscribeToRoom(odaId) {
     });
 }
 
+// ─── Bağlantı Bekçisi ─────────────────────────────────────────────────────────
+// Oyun sırasında (1) eğim mesajı gelmiyorsa hareketi durdurur, (2) telefona her saniye canlılık sinyali yollar.
+setInterval(() => {
+    if (!gameStarted || isGameOver || lockedDeviceId === null) return;
+    const now = Date.now();
+
+    if (now - lastTiltAt > TILT_STALE_MS) setTargetSpeed(0);
+
+    if (mqttClient && mqttClient.connected && now - lastHbAt >= HB_INTERVAL_MS) {
+        lastHbAt = now;
+        mqttClient.publish(
+            `awsracer/${ODA_ID}/state`,
+            JSON.stringify({ hb: true, owner: lockedDeviceId, age: now - lastTiltAt }),
+            { qos: 0 }
+        );
+    }
+}, 250);
+
 // ─── Game Over Sinyali ────────────────────────────────────────────────────────
 function broadcastGameOver() {
     if (!mqttClient || !mqttClient.connected) return;
@@ -186,6 +212,15 @@ function _handleMqttMessage(topic, message) {
 
         // ── Oyun Kontrolü ──────────────────────────────────────────────────
         if (desired.tilt !== undefined) {
+            // Yavaş ağda Shadow (REST) yedeği sırasız ulaşabilir: telefon damgası daha eski olan mesaj atılır.
+            // 5 sn'den fazla geride kalan damga telefon saati geri alındı demektir, kabul edilir.
+            if (desired.sentAt) {
+                const behind = lastPhoneSentAt - desired.sentAt;
+                if (behind > 0 && behind < 5000) return;
+                lastPhoneSentAt = desired.sentAt;
+            }
+            lastTiltAt = Date.now();
+
             // İlk tilt verisi gelince oyunu başlat
             if (!gameStarted && !isGameOver) startGame();
 
