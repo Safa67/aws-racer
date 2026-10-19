@@ -1,6 +1,6 @@
 # AWS Racer: Değişiklik Günlüğü ve Teknik Notlar
 
-Bu dosya, projeyi gözden geçirme ve geliştirme oturumunda yapılan her şeyi, nedenlerini, ölçümleri, bilinçli olarak yapılmayanları ve kalan işleri tek yerde toplar. Son güncelleme: 18 Ekim 2026.
+Bu dosya, projeyi gözden geçirme ve geliştirme oturumunda yapılan her şeyi, nedenlerini, ölçümleri, bilinçli olarak yapılmayanları ve kalan işleri tek yerde toplar. Son güncelleme: 19 Ekim 2026.
 
 Canlı site (AWS Amplify, `main` dalı): `https://main.d308ipxr84hxtz.amplifyapp.com/Monitor.html`
 Test sitesi (`test` dalı): `https://test.d308ipxr84hxtz.amplifyapp.com/`
@@ -36,7 +36,18 @@ Proje AWS kulübü için yapıldığı için iki kısıt baştan geçerlidir: **
 | `96eb525` | push edildi | Tam ekran/pencere boyutu değişince canvas yüksekliği güncellenir |
 | `5f2f09b` | push edildi | Kalkan ilk çarpmada gider (Lambda aktifken de), kalkan Lambda aktifken görünür |
 | `80e5890` | push edildi | Bekleme ekranı demosu (QR arkasında bot oyunu) |
-| (sonraki) | push edildi | Ek efektler: paralaks arka plan, çarpma sahnesi + mavi ekran, dalga gölgeleri, geri sayım, skor animasyonu, müzik ve yeni sesler |
+| `407f802` | push edildi | Ek efektler: paralaks arka plan, çarpma sahnesi + mavi ekran, dalga gölgeleri, geri sayım, müzik ve yeni sesler |
+| `6cb4257` | push edildi | Dalga engellerinin kırmızı gölge sütunları kaldırıldı (oyunu fazla kolaylaştırıyordu) |
+| `b5060e9` | push edildi | Küfürlü isim filtresi, dalga boşluk işareti kaldırıldı |
+| `928dc50` | push edildi | Tuşlarda tek dokunuş çalışır, eski değer sonradan gitme hatası, hız test butonları gizli |
+| `7c6febd` | push edildi | OWASP A05/A06/A02 bulguları: CSP + güvenlik başlıkları, bağımlılık güncelleme, SRI |
+| `7dfde98` | push edildi | Günlük düzeltmesi: aws-sdk 2.1693.0 güncellemesi zafiyeti kapatmıyor |
+| `fc7cb39` | push edildi | Güvenlik başlıkları `customHttp.yml`'e taşındı (`amplify.yml`'deki `customHeaders` etkisizdi) |
+| `b026b93` | push edildi | Başa Dön düğmesi çalışmıyordu (CSP satır içi `onclick`'i engelliyordu) |
+| `63c39ab` | push edildi | OWASP A01 kapatıldı: skor yazımı Lambda'ya taşındı, DynamoDB doğrudan yazım kapatıldı |
+| `7045440` | push edildi | Lambda skor API'si CSP tarafından engelleniyordu (`connect-src`'e `on.aws` eksikti) |
+| `85fba5a` | push edildi | Skor Lambda'sı çifte CORS başlığı yüzünden tarayıcıdan çalışmıyordu |
+| `91eafe6` | push edildi | Tarayıcı rolünden `dynamodb:PutItem` kaldırıldı (OWASP A01 tamamlandı) |
 
 Eski yerel (commit edilmemiş) değişiklikler `git stash` içinde `stash@{0}` olarak duruyor. İçinde bozuk bir regex vardı (bölüm 3). İhtiyaç yoksa `git stash drop` ile silinebilir.
 
