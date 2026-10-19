@@ -1162,3 +1162,8 @@ document.querySelectorAll('#speedBox button[data-scale]').forEach(btn => {
     });
 });
 setTimeScale(timeScale);
+
+// Hız test butonları yalnızca Monitor.html?test=1 ile görünür (etkinlikte ziyaretçiler görmesin)
+if (new URLSearchParams(window.location.search).has('test')) {
+    document.getElementById('speedGroup').style.display = 'contents';
+}

@@ -315,9 +315,10 @@ function startHeartbeat() {
 
 // Tuşa basılı tutuldukça hız artar: PAD_START (hafif) → PAD_MAX (tam hız), PAD_RAMP_MS içinde.
 // Bırakınca ya da yön değişince başa döner. Eşdeğer eğim açısıdır (45° = en yüksek hız).
-const PAD_START   = 12;
-const PAD_MAX     = 45;
-const PAD_RAMP_MS = 900;
+const PAD_START      = 16;    // Tek dokunuş yaklaşık bir oyuncu genişliği (~60 px) kadar adım atar
+const PAD_MAX        = 45;
+const PAD_RAMP_MS    = 900;
+const PAD_TAP_MIN_MS = 140;   // En kısa basış süresi: çok kısa dokunuş da bu kadar gönderilir (girdi tamponu)
 
 /**
  * Eğim yerine ekrandaki ◀ ▶ tuşlarıyla oynamayı başlatır.
@@ -326,29 +327,51 @@ const PAD_RAMP_MS = 900;
  */
 function startPadMode() {
     padMode = true;
-    let dir = 0;
-    let pressedAt = 0; // Mevcut yönün basılma zamanı
+    let wantDir   = 0;   // Parmakların şu an bastığı yön
+    let sendDir   = 0;   // Gönderilen yön: kısa dokunuşta en az PAD_TAP_MIN_MS sürer
+    let holdUntil = 0;   // Bu zamana kadar sendDir korunur
+    let pressedAt = 0;   // Gönderilen yönün başlangıcı (hızlanma için)
     const left  = document.getElementById('padLeft');
     const right = document.getElementById('padRight');
     document.getElementById('padControls').style.display = 'flex';
     document.getElementById('sensRow').style.display  = 'none';
     document.querySelector('.tilt-label').innerText = '🎮 Tuşlarla yönlendir';
 
+    /** Gönderilecek yönü güncelle: basılıysa o yön, bırakıldıysa minimum süre dolana kadar eski yön. */
+    const syncDir = () => {
+        const now = Date.now();
+        if (wantDir !== 0) {
+            if (sendDir !== wantDir) { sendDir = wantDir; pressedAt = now; }
+        } else if (sendDir !== 0 && now >= holdUntil) {
+            sendDir = 0;
+        }
+    };
+
+    /** Mevcut durumu hesapla, ekranı güncelle ve gönder. */
+    const tick = () => {
+        syncDir();
+        const held  = sendDir === 0 ? 0 : Math.min((Date.now() - pressedAt) / PAD_RAMP_MS, 1);
+        const value = sendDir === 0 ? 0 : Math.round(sendDir * (PAD_START + (PAD_MAX - PAD_START) * held));
+        document.getElementById('tiltDisplay').innerText = sendDir === 0 ? 'Tuş: -' : (sendDir < 0 ? 'Tuş: ◀' : 'Tuş: ▶');
+        updateTiltBar(value);
+        sendDataToAWS(value, PLAYER_NAME);
+    };
+
     const press = (d, btn) => (e) => {
         e.preventDefault();
-        if (dir !== d) pressedAt = Date.now();
-        dir = d;
+        wantDir   = d;
+        holdUntil = Date.now() + PAD_TAP_MIN_MS;
         btn.classList.add('pressed');
+        tick();   // 50 ms'lik zamanlayıcıyı bekleme: dokunuş anında gönder
     };
     const release = (btn) => (e) => {
         e.preventDefault();
-        // Diğer tuş hâlâ basılıysa onun yönünü koru
-        const prev = dir;
-        if (btn === left && right.classList.contains('pressed')) dir = 1;
-        else if (btn === right && left.classList.contains('pressed')) dir = -1;
-        else dir = 0;
-        if (dir !== prev) pressedAt = Date.now();
         btn.classList.remove('pressed');
+        // Diğer tuş hâlâ basılıysa onun yönünü koru
+        if (right.classList.contains('pressed'))     wantDir = 1;
+        else if (left.classList.contains('pressed')) wantDir = -1;
+        else                                         wantDir = 0;
+        syncDir();
     };
     [[left, -1], [right, 1]].forEach(([btn, d]) => {
         btn.addEventListener('pointerdown', press(d, btn));
@@ -356,14 +379,11 @@ function startPadMode() {
         btn.addEventListener('contextmenu', (e) => e.preventDefault());
     });
 
+    // Düzenli gönderim: tuş basılı unutulmasın, kopan paket telafi edilsin, minimum süre dolunca 0 gitsin
     const padTimer = setInterval(() => {
         if (gameOverShown) { clearInterval(padTimer); return; }
-        const held  = dir === 0 ? 0 : Math.min((Date.now() - pressedAt) / PAD_RAMP_MS, 1);
-        const value = dir === 0 ? 0 : Math.round(dir * (PAD_START + (PAD_MAX - PAD_START) * held));
-        document.getElementById('tiltDisplay').innerText = dir === 0 ? 'Tuş: -' : (dir < 0 ? 'Tuş: ◀' : 'Tuş: ▶');
-        updateTiltBar(value);
-        sendDataToAWS(value, PLAYER_NAME);
-    }, 50);
+        tick();
+    }, 40);
 }
 
 /**

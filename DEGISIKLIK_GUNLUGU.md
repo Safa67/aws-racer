@@ -89,7 +89,7 @@ Sorun: Hareket, düşme hızı, skor ve yumuşatma "kare başına" hesaplanıyor
 Gerçek bir 144 Hz ekranda ve gerçek telefonda henüz denenmedi.
 
 ### Oyun hızı: 1.5x
-Resmi oyun hızı `DEFAULT_TIME_SCALE = 1.5` (`js/monitor-game.js`). Monitörün sol altındaki test butonları 1x / 1.5x (oyun) / 2.4x (144 Hz) arasında geçiş yaptırır. Seçim kaydedilmez, sayfa yenilenince 1.5x'e dönülür. Skor yalnızca 1.5x'te DynamoDB'ye yazılır. Etkinlikten önce butonlar gizlenmelidir.
+Resmi oyun hızı `DEFAULT_TIME_SCALE = 1.5` (`js/monitor-game.js`). Test butonları (1x / 1.5x (oyun) / 2.4x (144 Hz)) **varsayılan olarak gizlidir**; yalnızca `Monitor.html?test=1` adresiyle görünür ve sol altta durur. Seçim kaydedilmez, sayfa yenilenince 1.5x'e dönülür. Skor yalnızca 1.5x'te DynamoDB'ye yazılır.
 
 ## 6. Telefon eğimi: ters yön ve aşırı hassasiyet
 
@@ -157,7 +157,13 @@ Canvas yüksekliği önceden yalnızca sayfa açılırken ayarlanıyordu; F11 il
 Klavye artık oyunu başlatmaz, hiçbir şey yapmaz. Yalnızca `Monitor.html?debug=1` ile: Enter oyunu başlatır, ← → oyuncuyu oynatır. Böylece standa yanlışlıkla basılan tuş "Anonim" bir oyun açmaz.
 
 ### Yön tuşları (isteğe bağlı)
-Öğreticide "Eğmek yerine ekrandaki ◀ ▶ tuşlarıyla oyna" seçilirse iki büyük tuş çıkar. Sensör ve izin gerekmez. Basılı tutuldukça hız 12° eşdeğerinden 45°'ye 0.9 sn'de çıkar, bırakınca ya da yön değişince başa döner. Tuş basılı unutulmasın diye değer 50 ms'de bir tekrar gönderilir.
+Öğreticide "Eğmek yerine ekrandaki ◀ ▶ tuşlarıyla oyna" seçilirse iki büyük tuş çıkar. Sensör ve izin gerekmez.
+- **Tek dokunuş artık çalışır:** Önceden hızlı bir dokunuş (50 ms'lik örnekleme aralığından kısa) hiç gönderilmiyor, gönderilse bile bulutu neredeyse hiç oynatmıyordu. Artık dokunuş anında gönderilir ve **en az 140 ms** sürer (girdi tamponu); başlangıç hızı 16° eşdeğeri. Bir dokunuş yaklaşık 45–60 px (bir oyuncu genişliği) adım atar. Ölçüm: 30 ms ve 60 ms'lik dokunuşlar +49 / +45 px, ters yöne hızlı dokunuş birbirini götürür (−16 px).
+- **Basılı tutunca hızlanır:** Hız, 0.9 sn'de 16° eşdeğerinden 45°'ye çıkar. Bırakınca ya da yön değişince başa döner.
+- Değer 40 ms'de bir tekrar gönderilir (tuş basılı unutulmasın, kopan paket telafi edilsin).
+
+### Gönderim hatası düzeltmesi (eski değer sonradan gitmesi)
+Gecikme iyileştirmesinden beri `sendDataToAWS` içindeki "son değeri kaybetme" (trailing send) zamanlayıcısı, yeni değer doğrudan gönderildiğinde iptal edilmiyordu. Bekleyen eski değer, yenisinden SONRA gidip kısa süreliğine yönü ters çevirebiliyordu (ölçüm: −16'dan sonra +17 geliyordu). Hem sensörde hem tuşta etkiliydi. Artık doğrudan gönderimde bekleyen eski değer iptal edilir.
 
 ### Hassasiyet seçimi
 Oyun ekranında Rahat / Normal / Hassas butonları (çarpan 0.7 / 1.0 / 1.3). Seçim tarayıcıda saklanır. Varsayılan Normal. Tuş modunda gizlenir.
@@ -306,14 +312,13 @@ Telefon ile monitör aynı Wi-Fi'daysa mesajı buluttan geçirmemek: WebRTC veri
 
 Öncelik sırasıyla:
 
-1. **Tuşa tek dokunuş:** Kısa dokunuş (50 ms örnekleme aralığından kısa) kaçabiliyor ve gönderilse bile bulutu neredeyse hiç oynatmıyor. Çözüm: en az ~120 ms'lik "dürtme" (input buffering) ve başlangıçta daha güçlü ilk hız.
-2. **Sahte skor:** Cognito kimliksiz rolü DynamoDB'ye doğrudan yazabiliyor. Tarayıcı konsolundan herkes istediği skoru yazabilir. Ödül verilecekse birincinin gerçekliğini monitörden doğrulayın. Kalıcı çözüm (Lambda/API Gateway) ek AWS maliyeti getirir, bu yüzden bilinçli ertelendi.
-3. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
-4. **Dış bağımlılıklar:** AWS SDK v2 (desteği sona eriyor) ve mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
-5. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
-6. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
-7. **Etkinlik öncesi kontrol listesi:**
-   - Oyun hızı test butonlarını gizleyin (varsayılan zaten 1.5x).
+1. **Sahte skor:** Cognito kimliksiz rolü DynamoDB'ye doğrudan yazabiliyor. Tarayıcı konsolundan herkes istediği skoru yazabilir. Ödül verilecekse birincinin gerçekliğini monitörden doğrulayın. Kalıcı çözüm (Lambda/API Gateway) ek AWS maliyeti getirir, bu yüzden bilinçli ertelendi.
+2. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
+3. **Dış bağımlılıklar:** AWS SDK v2 (desteği sona eriyor) ve mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
+4. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
+5. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
+6. **Etkinlik öncesi kontrol listesi:**
+   - Oyun hızı test butonları artık varsayılan olarak gizli (yalnızca `Monitor.html?test=1` ile görünür). Ses ve müzik düğmeleri her zaman görünür.
    - DynamoDB'deki test/eski kayıtları temizleyin (skorlar yükseldi).
    - Monitör bilgisayarında sayfaya bir kez tıklayarak sesi açın (ya da Chrome'u autoplay bayrağıyla başlatın).
    - Monitör bilgisayarını kabloyla bağlayın, 5 GHz Wi-Fi kullanın, stant Wi-Fi'ında gerçek telefonla deneyin.

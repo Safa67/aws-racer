@@ -163,6 +163,10 @@ function sendDataToAWS(tiltValue, playerName) {
         return;
     }
 
+    // Bu çağrı doğrudan gönderilecek: bekleyen eski değer (trailing) varsa iptal et, yoksa daha sonra
+    // eski değeri yeni değerin ARDINDAN gönderip yönü ters çevirebilir.
+    clearTimeout(pendingSend);
+
     // Değer değişmediyse sadece heartbeat aralığında tekrar gönder (maliyet + bant genişliği)
     if (tiltValue === lastSentTilt && now - lastSendTime < HEARTBEAT_MS) return;
 

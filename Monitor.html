@@ -79,10 +79,13 @@
 
     <!-- Test: oyun hızı. Resmi hız 1.5x (varsayılan). Skor sadece resmi hızda kaydedilir. -->
     <div id="speedBox">
-        <span>Oyun hızı (test):</span>
-        <button type="button" data-scale="1">1x</button>
-        <button type="button" data-scale="1.5">1.5x (oyun)</button>
-        <button type="button" data-scale="2.4">2.4x (144 Hz)</button>
+        <!-- Hız test butonları varsayılan olarak GİZLİ: yalnızca Monitor.html?test=1 ile görünür -->
+        <span id="speedGroup" style="display:none;">
+            <span>Oyun hızı (test):</span>
+            <button type="button" data-scale="1">1x</button>
+            <button type="button" data-scale="1.5">1.5x (oyun)</button>
+            <button type="button" data-scale="2.4">2.4x (144 Hz)</button>
+        </span>
         <button type="button" id="soundBtn">🔊 Ses (tıkla)</button>
         <button type="button" id="musicBtn">🎵 Müzik açık</button>
     </div>
