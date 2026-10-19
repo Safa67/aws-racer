@@ -355,18 +355,15 @@ A03 (injection) bu oturumda zaten düzeltilmişti (`escapeHtml`, küfür filtres
 Öncelik sırasıyla:
 
 1. **1€ filtresi:** Sabit EMA yerine, titremeyi ve gecikmeyi birlikte iyileştirmek için.
-2. **Dış bağımlılıklar:** mqtt.js `unpkg` CDN'inden geliyor. Stant Wi-Fi'ı kesilirse oyun açılmaz. Yerel dosyaya alınması önerilir.
-3. **README:** DynamoDB anahtarını `PlayerID` diye anlatıyor, kod `SessionId` + `PlayerName` yazıyor. Düzeltilmeli.
-4. **Gerçek cihaz testleri:** bölüm 10'daki "denenmeyenler".
-5. **Rate limiting (A04):** Lambda Function URL ve `dynamodb:Scan`'e karşı istek sınırlaması yok (bölüm 14).
-6. **Etkinlik öncesi kontrol listesi:**
+2. **Rate limiting (A04):** Lambda Function URL ve `dynamodb:Scan`'e karşı istek sınırlaması yok (bölüm 14).
+3. **Etkinlik öncesi kontrol listesi:**
    - Oyun hızı test butonları artık varsayılan olarak gizli (yalnızca `Monitor.html?test=1` ile görünür). Ses ve müzik düğmeleri her zaman görünür.
    - DynamoDB'deki test/eski kayıtları temizleyin (skorlar yükseldi).
    - Monitör bilgisayarında sayfaya bir kez tıklayarak sesi açın (ya da Chrome'u autoplay bayrağıyla başlatın).
    - Monitör bilgisayarını kabloyla bağlayın, 5 GHz Wi-Fi kullanın, stant Wi-Fi'ında gerçek telefonla deneyin.
    - `test` dalındaki değişiklikleri beğenirseniz `main`'e birleştirin: `git checkout main`, `git merge test`, `git push origin main`.
 
-Çözülenler (bu oturumda): Lambda (oyun içi güçlendirici) hız yığılması, `endGame` çift çağrısı, klavyenin oyunu başlatması, oda sahipliği (ikinci telefon), telefon tablo taraması maliyeti, MQTT joker konu izni (A01), DynamoDB doğrudan yazım (A01, skor artık `lambda/submit-score` üzerinden).
+Çözülenler (bu oturumda): Lambda (oyun içi güçlendirici) hız yığılması, `endGame` çift çağrısı, klavyenin oyunu başlatması, oda sahipliği (ikinci telefon), telefon tablo taraması maliyeti, MQTT joker konu izni (A01), DynamoDB doğrudan yazım (A01, skor artık `lambda/submit-score` üzerinden), README'deki DynamoDB anahtar açıklaması düzeltildi, gerçek cihaz testleri yapıldı.
 
 ## 16. Dosya haritası
 

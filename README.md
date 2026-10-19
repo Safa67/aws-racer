@@ -64,6 +64,7 @@ const AWS_CONFIG = {
     iotEndpoint:   'xxxx-ats.iot.eu-central-1...', // IoT Core Endpoint
     cognitoPoolId: 'eu-central-1:xxxx-xxxx',       // Identity Pool ID
     dynamoTable:   'AwsRacerScores',               // Tablo Adı
+    scoreApiUrl:   'https://xxxx.lambda-url.eu-central-1.on.aws/', // Skor yazan Lambda'nın Function URL'i
 };
 ```
 
@@ -74,7 +75,7 @@ const AWS_CONFIG = {
 ## 🛠️ Kurulum Notları
 
 - **IoT İzinleri:** Cognito Identity Pool ID için oluşturduğunuz Role'e `iot:Connect`, `iot:Subscribe`, `iot:Publish` ve `iot:Receive` izinlerini vermeyi unutmayın.
-- **DynamoDB:** `PlayerID` (Partition Key) ve `Score` (Number) içeren bir tablo oluşturun.
+- **DynamoDB:** `SessionId` (Partition Key, String) içeren bir tablo oluşturun. Diğer alanlar (`PlayerName`, `Score`, `DeviceId`, `Day`, `PlayedAt`) index gerektirmez. Yazma izni yalnızca `lambda/submit-score` fonksiyonunun yürütme rolüne verilmelidir — tarayıcının kimliksiz rolü yalnızca `dynamodb:Scan` (okuma) alır, `PutItem` almamalıdır.
 - **CORS:** AWS IoT Core tarafında WebSocket için gerekli izinlerin (Custom Authorizer veya SigV4) ayarlandığından emin olun.
 
 ---
