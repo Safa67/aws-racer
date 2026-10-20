@@ -395,53 +395,8 @@ body.dark-theme .tut-hint {
 }
 
 /* ============================================
-   KALİBRASYON + YÖN TUŞLARI
+   KALİBRASYON
    ============================================ */
-
-.tut-pad-opt {
-    display: block;
-    width: 100%;
-    max-width: 340px;
-    margin: 4px 0 6px 0;
-    font-size: 14px;
-    color: #545B64;
-    text-align: left;
-}
-
-
-#padControls {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    gap: 12px;
-    padding: 12px;
-    z-index: 500;
-    touch-action: none;
-}
-
-#padControls button {
-    flex: 1;
-    height: 38vh;
-    font-size: 64px;
-    border: none;
-    border-radius: 12px;
-    background: #232F3E;
-    color: white;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-}
-
-#padControls button.pressed {
-    background: #FF9900;
-}
-
-body.dark-theme .tut-pad-opt {
-    color: #AAB7B8;
-}
 
 /* Hassasiyet seçimi */
 #sensRow {

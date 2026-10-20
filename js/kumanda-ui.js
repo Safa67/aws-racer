@@ -50,7 +50,7 @@ let gameOverShown = false;
 /** Oda başka bir telefona ait: kontrolü bırak ve bilgi ekranı göster. */
 function showBusy() {
     if (gameOverShown) return;
-    gameOverShown = true;      // sensör, tuş ve kalp atışı zamanlayıcıları bu bayrakla durur
+    gameOverShown = true;      // sensör ve kalp atışı zamanlayıcıları bu bayrakla durur
     controlRejected = true;    // gönderimi keser
     clearInterval(gameOverCheck);
     clearInterval(leaderInterval);
@@ -76,6 +76,7 @@ function showGameOver() {
     gameOverShown = true;
     clearInterval(gameOverCheck);
     clearInterval(leaderInterval);
+    releaseScreen();
 
     document.getElementById('gameUI').innerHTML = `
         <div style="text-align:center; padding: 40px 20px;">
@@ -94,6 +95,38 @@ function showGameOver() {
         window.location.href = "https://aws.amazon.com/tr/";
     }, 3000);
 }
+
+// ─── Ekran Açık Tutma ─────────────────────────────────────────────────────────
+// Kumanda dokunmadan eğim ile kullanılır; telefon ekranı kendiliğinden kapanmasın.
+// NoSleep.js: Wake Lock API (Android, iOS 16.4+) varsa onu, yoksa gizli video yöntemini kullanır.
+// Kullanıcı dokunuşu içinde başlatılmalı (iOS/Android kuralı); bu yüzden "Hazırım" butonundan çağrılır.
+let noSleep = null;
+let screenKeepWanted = false;
+
+function keepScreenOn() {
+    screenKeepWanted = true;
+    try {
+        if (!noSleep && typeof NoSleep !== 'undefined') noSleep = new NoSleep();
+        if (noSleep && !noSleep.isEnabled) {
+            const p = noSleep.enable();
+            if (p && p.catch) p.catch(() => {});
+        }
+    } catch (e) {}
+}
+
+function releaseScreen() {
+    screenKeepWanted = false;
+    try { if (noSleep) noSleep.disable(); } catch (e) {}
+}
+
+// Sekme arka plandan dönünce kilit (sistem tarafından bırakılmış olabilir) yeniden alınır
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !screenKeepWanted || !noSleep) return;
+    try {
+        const p = noSleep.enable();
+        if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+});
 
 // ─── Oyuna Başla ──────────────────────────────────────────────────────────────
 
@@ -137,12 +170,7 @@ function startPlaying(name) {
  */
 document.getElementById('tutReadyBtn').addEventListener('click', () => {
     document.getElementById('tutorialOverlay').style.display = 'none';
-
-    // Tuş modu seçildiyse sensör/izin gerekmez
-    if (document.getElementById('padModeChk').checked) {
-        startPadMode();
-        return;
-    }
+    keepScreenOn();
 
     // Sensör olayını beklemeden monitöre "oyuncu hazır" sinyali ver (oyun başlar, 4 sn ısınma var)
     startHeartbeat();
@@ -187,7 +215,6 @@ document.querySelectorAll('.sens-btn').forEach(btn => {
 applySensButtons();
 
 let lastOutTilt   = 0; // Telefondan en son gönderilen eğim (kalp atışı bunu tekrarlar)
-let padMode       = false;
 
 /**
  * Telefonun sağ kenarının yataydan ne kadar aşağıda olduğunu (°) verir. Sağa eğim pozitif.
@@ -245,81 +272,6 @@ function startHeartbeat() {
         if (gameOverShown) { clearInterval(hb); return; }
         sendDataToAWS(lastOutTilt, PLAYER_NAME);
     }, 300);
-}
-
-// ─── Yön Tuşları (isteğe bağlı) ───────────────────────────────────────────────
-
-// Tuşa basılı tutuldukça hız artar: PAD_START (hafif) → PAD_MAX (tam hız), PAD_RAMP_MS içinde.
-// Bırakınca ya da yön değişince başa döner. Eşdeğer eğim açısıdır (45° = en yüksek hız).
-const PAD_START      = 16;    // Tek dokunuş yaklaşık bir oyuncu genişliği (~60 px) kadar adım atar
-const PAD_MAX        = 45;
-const PAD_RAMP_MS    = 900;
-const PAD_TAP_MIN_MS = 140;   // En kısa basış süresi: çok kısa dokunuş da bu kadar gönderilir (girdi tamponu)
-
-/**
- * Eğim yerine ekrandaki ◀ ▶ tuşlarıyla oynamayı başlatır.
- * Basılı tutulan yön gönderilir (tuttukça hızlanır); bırakılınca 0. 50 ms'de bir tekrar gönderilir
- * (kopan paket tuşu takılı bırakmasın).
- */
-function startPadMode() {
-    padMode = true;
-    let wantDir   = 0;   // Parmakların şu an bastığı yön
-    let sendDir   = 0;   // Gönderilen yön: kısa dokunuşta en az PAD_TAP_MIN_MS sürer
-    let holdUntil = 0;   // Bu zamana kadar sendDir korunur
-    let pressedAt = 0;   // Gönderilen yönün başlangıcı (hızlanma için)
-    const left  = document.getElementById('padLeft');
-    const right = document.getElementById('padRight');
-    document.getElementById('padControls').style.display = 'flex';
-    document.getElementById('sensRow').style.display  = 'none';
-    document.querySelector('.tilt-label').innerText = '🎮 Tuşlarla yönlendir';
-
-    /** Gönderilecek yönü güncelle: basılıysa o yön, bırakıldıysa minimum süre dolana kadar eski yön. */
-    const syncDir = () => {
-        const now = Date.now();
-        if (wantDir !== 0) {
-            if (sendDir !== wantDir) { sendDir = wantDir; pressedAt = now; }
-        } else if (sendDir !== 0 && now >= holdUntil) {
-            sendDir = 0;
-        }
-    };
-
-    /** Mevcut durumu hesapla, ekranı güncelle ve gönder. */
-    const tick = () => {
-        syncDir();
-        const held  = sendDir === 0 ? 0 : Math.min((Date.now() - pressedAt) / PAD_RAMP_MS, 1);
-        const value = sendDir === 0 ? 0 : Math.round(sendDir * (PAD_START + (PAD_MAX - PAD_START) * held));
-        document.getElementById('tiltDisplay').innerText = sendDir === 0 ? 'Tuş: -' : (sendDir < 0 ? 'Tuş: ◀' : 'Tuş: ▶');
-        updateTiltBar(value);
-        sendDataToAWS(value, PLAYER_NAME);
-    };
-
-    const press = (d, btn) => (e) => {
-        e.preventDefault();
-        wantDir   = d;
-        holdUntil = Date.now() + PAD_TAP_MIN_MS;
-        btn.classList.add('pressed');
-        tick();   // 50 ms'lik zamanlayıcıyı bekleme: dokunuş anında gönder
-    };
-    const release = (btn) => (e) => {
-        e.preventDefault();
-        btn.classList.remove('pressed');
-        // Diğer tuş hâlâ basılıysa onun yönünü koru
-        if (right.classList.contains('pressed'))     wantDir = 1;
-        else if (left.classList.contains('pressed')) wantDir = -1;
-        else                                         wantDir = 0;
-        syncDir();
-    };
-    [[left, -1], [right, 1]].forEach(([btn, d]) => {
-        btn.addEventListener('pointerdown', press(d, btn));
-        ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, release(btn)));
-        btn.addEventListener('contextmenu', (e) => e.preventDefault());
-    });
-
-    // Düzenli gönderim: tuş basılı unutulmasın, kopan paket telafi edilsin, minimum süre dolunca 0 gitsin
-    const padTimer = setInterval(() => {
-        if (gameOverShown) { clearInterval(padTimer); return; }
-        tick();
-    }, 40);
 }
 
 /**

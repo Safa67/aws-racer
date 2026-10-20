@@ -90,6 +90,7 @@ let crash          = null;   // Çarpma sahnesi: oyun bitince canvas'ta oynar (�
 let lastCountN     = null;   // Geri sayımda son gösterilen rakam (ses için)
 let goPlayed       = false;
 const CRASH_MS     = 1900;   // Çarpma sahnesinden sonra "Oyun bitti" kartının çıkma süresi
+const AUTO_RESET_SEC = 5;       // "Oyun bitti" kartı çıktıktan sonra tıklanmasa da başa dönme süresi (sn)
 
 // --- Oyuncu ---
 const player = {
@@ -1081,13 +1082,27 @@ function endGame() {
     fx.burst(player.x, player.y - 25, '#B39DDB', 18, 5);
     fx.burst(player.x, player.y - 25, '#D13212', 18, 7.5);
     setTimeout(() => {
-        if (crash === myCrash && isGameOver) document.getElementById('gameOver').style.display = 'block';
+        if (crash !== myCrash || !isGameOver) return;
+        document.getElementById('gameOver').style.display = 'block';
+        autoResetCountdown(myCrash, AUTO_RESET_SEC);
     }, CRASH_MS);
 
     // DynamoDB kaydını aws modülüne devret
     if (typeof onGameOver === 'function') onGameOver(Math.floor(score / 10));
     // Kumandaya (telefona) oyunun bittiğini bildir
     if (typeof broadcastGameOver === 'function') broadcastGameOver();
+}
+
+/**
+ * "Başa Dön" tıklanmasa da kartın görünmesinden AUTO_RESET_SEC sn sonra bekleme ekranına döner.
+ * Düğmede geri sayım gösterilir. Elle sıfırlanmışsa ya da yeni bir oyun bittiyse (crash değişir) durur.
+ */
+function autoResetCountdown(myCrash, sec) {
+    const btn = document.getElementById('resetBtn');
+    if (crash !== myCrash || !isGameOver) { btn.innerText = 'Başa Dön'; return; }
+    if (sec <= 0) { btn.innerText = 'Başa Dön'; resetGame(); return; }
+    btn.innerText = `Başa Dön (${sec})`;
+    setTimeout(() => autoResetCountdown(myCrash, sec - 1), 1000);
 }
 
 /**
@@ -1101,6 +1116,7 @@ function resetGame() {
     clearRunState();
 
     document.getElementById('gameOver').style.display = 'none';
+    document.getElementById('resetBtn').innerText = 'Başa Dön';
 
     // Yeni oda oluştur (önceki oyuncu bağlanamaz)
     if (typeof onGameReset === 'function') onGameReset();

@@ -46,9 +46,6 @@
             <div class="tut-icon">💾</div>
             <div class="tut-text"><b>Eski donanımlardan kaç</b><br>Sunucu rafı, disket, mavi ekran ve kablo yumağına çarparsan oyun biter.</div>
         </div>
-        <label class="tut-pad-opt">
-            <input type="checkbox" id="padModeChk"> 🎮 Eğmek yerine ekrandaki ◀ ▶ tuşlarıyla oyna
-        </label>
         <button id="tutReadyBtn">Hazırım, Başla 🚀</button>
         <p class="tut-hint">Butona basınca oyun, telefonu eğdiğin an başlar.</p>
     </div>
@@ -82,11 +79,6 @@
                 <button type="button" class="sens-btn" data-sens="high">Hassas</button>
             </div>
         </div>
-        <!-- Yön tuşları: sadece "tuşlarla oyna" seçilirse görünür -->
-        <div id="padControls" style="display:none;">
-            <button id="padLeft" type="button" aria-label="Sol">◀</button>
-            <button id="padRight" type="button" aria-label="Sağ">▶</button>
-        </div>
 
         <!-- Canlı Liderlik Tablosu -->
         <div class="leaderboard">
@@ -108,6 +100,7 @@
         3. kumanda-ui.js  : İsim doğrulama, UI geçişi, sensör okuma
     -->
     <script src="https://unpkg.com/mqtt@5.16.1/dist/mqtt.min.js" integrity="sha384-ilRYg/zm2XqUafLvBoGVk40UfNRnvUkYMy+e/JPo4YgsFR6X9Q3jYEkqFQXquX4r" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js" integrity="sha512-DSzvYfxJWRi3E6vfcGQfL5CqOlApxYrrdqRP3hRCnoiZ0oM6+ccYjbtdzQFUrAOI/ehKk0VKFuKs5GseGPkVjQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/config.js"></script>
     <script src="js/iot-sign.js"></script>
     <script src="js/game-rules.js"></script>
